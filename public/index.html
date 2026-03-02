@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mini-Evolution | Painel de Controle</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: 'Outfit', sans-serif;
+            background: radial-gradient(circle at top left, #1a1a2e, #16213e);
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+
+        .glass {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .gradient-text {
+            background: linear-gradient(135deg, #60a5fa, #a855f7);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -10px rgba(139, 92, 246, 0.5);
+        }
+
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+
+        .card-hover:hover {
+            border-color: rgba(139, 92, 246, 0.3);
+            background: rgba(255, 255, 255, 0.05);
+        }
+    </style>
+</head>
+
+<body class="p-4 md:p-8">
+    <div class="max-w-6xl mx-auto space-y-8">
+        <!-- Header -->
+        <header class="flex flex-col md:flex-row justify-between items-center gap-6 glass rounded-3xl p-8 mb-12">
+            <div>
+                <h1 class="text-4xl font-extrabold tracking-tight mb-2">
+                    <span class="gradient-text">Mini-Evolution</span>
+                </h1>
+                <p class="text-slate-400 font-light">Gerencie suas instâncias do WhatsApp de forma isolada e segura.</p>
+            </div>
+            <div class="flex items-center gap-4">
+                <button onclick="createInstance()"
+                    class="btn-primary flex items-center gap-2 px-6 py-3 rounded-2xl font-semibold text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    Nova Instância
+                </button>
+            </div>
+        </header>
+
+        <!-- Stats / Overview -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="glass p-6 rounded-3xl border-l-4 border-blue-500">
+                <p class="text-slate-400 text-sm mb-1 uppercase tracking-wider font-semibold">Instâncias Ativas</p>
+                <h3 id="active-count" class="text-3xl font-bold">0</h3>
+            </div>
+            <div class="glass p-6 rounded-3xl border-l-4 border-purple-500">
+                <p class="text-slate-400 text-sm mb-1 uppercase tracking-wider font-semibold">Status do Servidor</p>
+                <div class="flex items-center gap-2">
+                    <span class="flex h-3 w-3 rounded-full bg-green-500"></span>
+                    <h3 class="text-3xl font-bold">Online</h3>
+                </div>
+            </div>
+            <div class="glass p-6 rounded-3xl border-l-4 border-cyan-500">
+                <p class="text-slate-400 text-sm mb-1 uppercase tracking-wider font-semibold">Versão</p>
+                <h3 class="text-3xl font-bold">v2.0.0</h3>
+            </div>
+        </div>
+
+        <!-- Instances List -->
+        <section class="space-y-6">
+            <h2 class="text-2xl font-bold flex items-center gap-3">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-400" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+                Suas Instâncias
+            </h2>
+            <div id="instances-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- Loading state -->
+                <div class="col-span-full py-12 text-center text-slate-500">
+                    <div class="animate-spin inline-block w-8 h-8 border-[3px] border-current border-t-transparent text-slate-500 rounded-full mb-4"
+                        role="status" aria-label="loading"></div>
+                    <p>Carregando instâncias...</p>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <!-- Modal Nova Instância -->
+    <div id="modal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="glass p-8 rounded-[2rem] w-full max-w-md animate-in fade-in zoom-in duration-300">
+            <h3 class="text-2xl font-bold mb-6">Criar Nova Instância</h3>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Nome Identificador</label>
+                    <input type="text" id="inst-name" placeholder="Ex: comercial_01"
+                        class="w-full bg-slate-800/50 border border-slate-700 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all">
+                </div>
+                <div class="flex gap-3 pt-4">
+                    <button onclick="closeModal()"
+                        class="flex-1 px-6 py-3 rounded-2xl font-semibold bg-slate-800 hover:bg-slate-700 transition-colors">Cancelar</button>
+                    <button onclick="submitInstance()"
+                        class="flex-1 btn-primary px-6 py-3 rounded-2xl font-semibold text-white">Criar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function loadInstances() {
+            try {
+                const res = await fetch('/management/instances');
+                const data = await res.json();
+                const container = document.getElementById('instances-container');
+                const activeCount = document.getElementById('active-count');
+
+                if (data.length === 0) {
+                    container.innerHTML = `
+                        <div class="col-span-full py-12 glass rounded-3xl text-center space-y-4">
+                            <p class="text-slate-400">Nenhuma instância criada ainda.</p>
+                            <button onclick="createInstance()" class="text-blue-400 hover:underline">Criar a primeira agora</button>
+                        </div>
+                    `;
+                    activeCount.innerText = '0';
+                    return;
+                }
+
+                activeCount.innerText = data.length;
+                container.innerHTML = data.map(inst => `
+                    <div class="glass p-6 rounded-3xl card-hover border border-transparent shadow-xl flex flex-col justify-between">
+                        <div>
+                            <div class="flex justify-between items-start mb-4">
+                                <h4 class="text-xl font-bold truncate pr-4">${inst.key}</h4>
+                                <span class="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest ${inst.status === 'connected' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}">
+                                    ${inst.status}
+                                </span>
+                            </div>
+                            <div class="bg-black/20 p-4 rounded-2xl mb-6 break-all">
+                                <p class="text-[10px] text-slate-500 uppercase font-bold mb-1 tracking-wider">Token da Instância (API Key)</p>
+                                <code class="text-purple-400 font-mono text-xs">${inst.token}</code>
+                            </div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="deleteInstance('${inst.key}')" class="p-3 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors flex-1 text-sm font-semibold">Deletar</button>
+                            <button onclick="copyToClipboard('${inst.token}')" class="p-3 rounded-xl bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors flex-1 text-sm font-semibold">Copiar Token</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        function createInstance() {
+            document.getElementById('modal').classList.remove('hidden');
+        }
+
+        function closeModal() {
+            document.getElementById('modal').classList.add('hidden');
+        }
+
+        async function submitInstance() {
+            const name = document.getElementById('inst-name').value;
+            if (!name) return alert('Digite um nome!');
+
+            try {
+                const res = await fetch('/management/instances', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                if (res.ok) {
+                    closeModal();
+                    loadInstances();
+                } else {
+                    const err = await res.json();
+                    alert(err.error || 'Erro ao criar');
+                }
+            } catch (err) {
+                alert('Falha na rede');
+            }
+        }
+
+        async function deleteInstance(key) {
+            if (!confirm('Tem certeza? Isso apagará todos os dados desta instância.')) return;
+            try {
+                await fetch(`/management/instances/${key}`, { method: 'DELETE' });
+                loadInstances();
+            } catch (err) {
+                alert('Erro ao deletar');
+            }
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text);
+            alert('Token copiado para a área de transferência!');
+        }
+
+        loadInstances();
+        setInterval(loadInstances, 10000);
+    </script>
+</body>
+
+</html>

@@ -161,19 +161,29 @@ app.get('/management/instances', (req, res) => {
 });
 
 app.post('/management/instances', (req, res) => {
-    const { name } = req.body;
-    if (!name) return res.status(400).json({ error: 'Nome é obrigatório' });
+    const { name, key: providedKey, token: providedToken } = req.body;
+    if (!name && !providedKey) return res.status(400).json({ error: 'Nome ou Key é obrigatório' });
 
-    const key = name.replace(/\s+/g, '_').toLowerCase();
-    if (instancesData.some(i => i.key === key)) return res.status(400).json({ error: 'Instância já existe' });
+    const key = providedKey || name.replace(/\s+/g, '_').toLowerCase();
 
-    const token = `me_${crypto.randomBytes(16).toString('hex')}`;
+    let existing = instancesData.find(i => i.key === key);
+    if (existing) {
+        if (providedToken && existing.token !== providedToken) {
+            console.log(`[Management] Updating token for instance: ${key}`);
+            existing.token = providedToken;
+            cacheInstanceConfig();
+        }
+        return res.json(existing);
+    }
+
+    const token = providedToken || `me_${crypto.randomBytes(16).toString('hex')}`;
     const newInstance = { key, token, status: 'disconnected', created_at: new Date() };
 
     instancesData.push(newInstance);
     cacheInstanceConfig();
     startInstance(key);
 
+    console.log(`[Management] New instance created: ${key}`);
     res.json(newInstance);
 });
 

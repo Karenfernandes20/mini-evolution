@@ -598,5 +598,11 @@
     "token": "me_0a09c23352eeb22d4dc33f6fb6779964",
     "status": "disconnected",
     "created_at": "2026-03-02T11:32:37.154Z"
+  },
+  {
+    "key": "karen_pessoal",
+    "token": "me_671c66f3ae522430762c4fe6848b323d",
+    "status": "connected",
+    "created_at": "2026-03-02T19:06:49.728Z"
   }
 ]

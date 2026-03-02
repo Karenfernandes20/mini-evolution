@@ -24,7 +24,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // DATA STORAGE
 const INSTANCES_FILE = path.resolve(__dirname, "instances.json");
 const AUTH_BASE_DIR = path.resolve(__dirname, "sessions");
-const WEBHOOK_URL_BASE = process.env.WEBHOOK_URL_BASE || 'http://localhost:3000/api/minievo/webhook';
+const WEBHOOK_URL_BASE = process.env.WEBHOOK_URL_BASE || 'http://127.0.0.1:3000/api/minievo/webhook';
 
 // Ensure directories exist
 if (!fs.existsSync(AUTH_BASE_DIR)) fs.mkdirSync(AUTH_BASE_DIR);
@@ -32,6 +32,7 @@ if (!fs.existsSync(INSTANCES_FILE)) fs.writeFileSync(INSTANCES_FILE, JSON.string
 
 let instancesData = JSON.parse(fs.readFileSync(INSTANCES_FILE, 'utf-8'));
 const instances = new Map(); // key -> { sock, qr, contacts }
+const startingInstances = new Map(); // key -> Promise
 
 // Helper to save instances
 function cacheInstanceConfig() {
@@ -53,7 +54,7 @@ async function startInstance(instKey) {
         browser: Browsers.ubuntu('Chrome'),
         syncFullHistory: false,
         markOnlineOnConnect: false,
-        logger: pino({ level: 'error' })
+        logger: pino({ level: 'info' })
     });
 
     const instObj = {
@@ -85,9 +86,12 @@ async function startInstance(instKey) {
         const { connection, qr, lastDisconnect } = update;
 
         if (qr) {
+            console.log(`[Mini-Evo] Novo QR Code gerado para ${instKey}`);
             instObj.qr = qr;
             // Notify Integrai about QR
-            axios.post(`${WEBHOOK_URL_BASE}/${instKey}`, { event: "qrcode", qr }).catch(() => { });
+            axios.post(`${WEBHOOK_URL_BASE}/${instKey}`, { event: "qrcode", qr })
+                .then(() => console.log(`[Mini-Evo] Webhook de QR enviado para ${instKey}`))
+                .catch(err => console.error(`[Mini-Evo] Erro ao enviar webhook QR: ${err.message}`));
         }
 
         if (connection === "open") {
@@ -148,6 +152,7 @@ async function startInstance(instKey) {
             }).catch(() => { });
         }
     });
+    return instObj;
 }
 
 // MANAGEMENT ENDPOINTS
@@ -205,13 +210,40 @@ function authorizeIntegrai(req, res, next) {
     const token = req.headers['apikey'] || req.query.token || req.body.token;
     const instKey = req.query.instanceKey || req.body.instanceKey || req.params.instanceKey;
 
-    if (!token) return res.status(401).json({ error: "Token não fornecido" });
-    if (!instKey) return res.status(400).json({ error: "Instância não especificada" });
+    console.log(`[Auth] Checking auth for instance: ${instKey} with token: ${token ? 'PROVIDED' : 'MISSING'}`);
 
-    const instData = instancesData.find(i => i.key === instKey);
-    if (!instData || instData.token !== token) {
+    if (!token) {
+        console.warn(`[Auth] Missing token for instance ${instKey}`);
+        return res.status(401).json({ error: "Token não fornecido" });
+    }
+    if (!instKey) {
+        console.warn(`[Auth] Missing instanceKey in request`);
+        return res.status(400).json({ error: "Instância não especificada" });
+    }
+
+    let instData = instancesData.find(i => i.key === instKey);
+
+    // Se não achar na memória, tenta recarregar do arquivo (pode ter sido editado manualmente)
+    if (!instData) {
+        console.log(`[Auth] Instance ${instKey} not in memory, reloading ${INSTANCES_FILE}...`);
+        try {
+            instancesData = JSON.parse(fs.readFileSync(INSTANCES_FILE, 'utf-8'));
+            instData = instancesData.find(i => i.key === instKey);
+        } catch (e) {
+            console.error(`[Auth] Error reloading instances.json:`, e.message);
+        }
+    }
+
+    if (!instData) {
+        console.warn(`[Auth] Instance NOT FOUND in database: ${instKey}`);
+        return res.status(404).json({ error: "Instância não encontrada no sistema" });
+    }
+
+    if (instData.token !== token) {
+        console.warn(`[Auth] Token mismatch for instance ${instKey}. Expected: ${instData.token.substring(0, 8)}..., Received: ${token.substring(0, 8)}...`);
         return res.status(403).json({ error: "Acesso negado: Token inválido para esta instância" });
     }
+
     next();
 }
 
@@ -219,11 +251,25 @@ function authorizeIntegrai(req, res, next) {
 async function ensureInstanceStarted(instKey) {
     if (instances.has(instKey)) return instances.get(instKey);
 
+    // Se já estiver iniciando, aguarda a promessa existente
+    if (startingInstances.has(instKey)) {
+        console.log(`[LazyLoad] Waiting for existing start promise for: ${instKey}`);
+        return await startingInstances.get(instKey);
+    }
+
     const instData = instancesData.find(i => i.key === instKey);
     if (!instData) return null;
 
-    console.log(`[LazyLoad] Starting instance: ${instKey}`);
-    return await startInstance(instKey);
+    console.log(`[LazyLoad] Starting new instance: ${instKey}`);
+    const startPromise = startInstance(instKey);
+    startingInstances.set(instKey, startPromise);
+
+    try {
+        const inst = await startPromise;
+        return inst;
+    } finally {
+        startingInstances.delete(instKey);
+    }
 }
 
 // INTEGRAI INTERACTION ENDPOINTS (Now Auth Protected)
@@ -237,27 +283,39 @@ app.get('/get-qr', authorizeIntegrai, async (req, res) => {
 // Alias for Evolution API /instance/connect/:key
 app.get('/instance/connect/:instanceKey', authorizeIntegrai, async (req, res) => {
     const key = req.params.instanceKey;
+    console.log(`[Connect] Request to connect instance: ${key}`);
     const inst = await ensureInstanceStarted(key);
 
     // Se já estiver conectado
-    if (inst?.sock?.user) return res.json({ status: 'connected' });
+    if (inst?.sock?.user) {
+        console.log(`[Connect] Instance ${key} is already connected.`);
+        return res.json({ status: 'connected' });
+    }
 
-    // Aguardar QR Code por até 10 segundos se não tiver um agora
+    // Aguardar QR Code por até 30 segundos se não tiver um agora
     if (!inst?.qr) {
+        console.log(`[Connect] No QR yet for ${key}, waiting...`);
         let attempts = 0;
-        while (!inst?.qr && attempts < 20) {
+        while (!inst?.qr && attempts < 60) { // 30 segundos
+            if (inst?.sock?.user) break; // Se conectou no meio tempo
             await new Promise(r => setTimeout(r, 500));
             attempts++;
         }
     }
 
+    if (inst?.sock?.user) {
+        return res.json({ status: 'connected' });
+    }
+
     if (inst?.qr) {
+        console.log(`[Connect] Returning QR for ${key}`);
         return res.json({
-            qrcode: inst.qr, // Retornar direto no JSON como a Evolution API faz
+            qrcode: inst.qr,
             status: 'qrcode'
         });
     }
 
+    console.log(`[Connect] Timed out waiting for QR for ${key}`);
     return res.json({ status: 'connecting', message: 'Iniciando conexão, aguarde o QR Code...' });
 });
 

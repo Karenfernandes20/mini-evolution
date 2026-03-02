@@ -209,12 +209,29 @@
         }
 
         async function deleteInstance(key) {
-            if (!confirm('Tem certeza? Isso apagará todos os dados desta instância.')) return;
+            const confirmName = prompt(`⚠️ ATENÇÃO: Isso apagará permanentemente todos os dados da instância "${key}".\n\nPara confirmar, digite o nome da instância abaixo:`);
+
+            if (confirmName === null) return; // Cancelado
+
+            if (confirmName !== key) {
+                return alert('Nome incorreto. A instância NÃO foi deletada.');
+            }
+
             try {
-                await fetch(`/management/instances/${key}`, { method: 'DELETE' });
-                loadInstances();
+                const res = await fetch(`/management/instances/${key}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ confirmName })
+                });
+
+                if (res.ok) {
+                    loadInstances();
+                } else {
+                    const err = await res.json();
+                    alert(err.error || 'Erro ao deletar');
+                }
             } catch (err) {
-                alert('Erro ao deletar');
+                alert('Erro na rede ao tentar deletar');
             }
         }
 

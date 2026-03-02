@@ -124,10 +124,29 @@ async function startInstance(instKey) {
     });
 
     sock.ev.on("messages.upsert", async (msg) => {
-        axios.post(`${WEBHOOK_URL_BASE}/${instKey}`, {
-            event: "messages.upsert",
-            data: { messages: msg.messages }
-        }).catch(() => { });
+        for (const message of msg.messages) {
+            const remoteJid = message.key.remoteJid;
+            let groupName = null;
+
+            if (remoteJid && remoteJid.endsWith('@g.us')) {
+                try {
+                    const metadata = await sock.groupMetadata(remoteJid);
+                    groupName = metadata.subject;
+                } catch (e) {
+                    // Fallback to cached group info if available
+                    groupName = instObj.contacts[remoteJid]?.name || instObj.contacts[remoteJid]?.subject;
+                }
+            }
+
+            axios.post(`${WEBHOOK_URL_BASE}/${instKey}`, {
+                event: "messages.upsert",
+                instance: instKey,
+                data: {
+                    messages: [message],
+                    groupName: groupName // Mandar o nome do grupo para o Integrai
+                }
+            }).catch(() => { });
+        }
     });
 }
 
@@ -155,25 +174,30 @@ app.post('/management/instances', (req, res) => {
 
 app.delete('/management/instances/:key', (req, res) => {
     const { key } = req.params;
+    const { confirmName } = req.body;
+
     const idx = instancesData.findIndex(i => i.key === key);
-    if (idx !== -1) {
-        instancesData.splice(idx, 1);
-        cacheInstanceConfig();
+    if (idx === -1) return res.status(404).json({ error: 'Nâo encontrado' });
 
-        // Stop socket if running
-        const inst = instances.get(key);
-        if (inst?.sock) inst.sock.logout().catch(() => { });
-        instances.delete(key);
-
-        // Delete files
-        try {
-            fs.rmSync(path.join(AUTH_BASE_DIR, key), { recursive: true, force: true });
-        } catch (e) { }
-
-        res.json({ success: true });
-    } else {
-        res.status(404).json({ error: 'Nâo encontrado' });
+    // Segurança: Confirmar pelo nome (key)
+    if (confirmName !== key) {
+        return res.status(400).json({ error: `Para deletar, você deve digitar corretamente o nome da instância: "${key}"` });
     }
+
+    instancesData.splice(idx, 1);
+    cacheInstanceConfig();
+
+    // Stop socket if running
+    const inst = instances.get(key);
+    if (inst?.sock) inst.sock.logout().catch(() => { });
+    instances.delete(key);
+
+    // Delete files
+    try {
+        fs.rmSync(path.join(AUTH_BASE_DIR, key), { recursive: true, force: true });
+    } catch (e) { }
+
+    res.json({ success: true });
 });
 
 // Middleware de Autenticação para Integrai
@@ -214,9 +238,27 @@ app.get('/get-qr', authorizeIntegrai, async (req, res) => {
 app.get('/instance/connect/:instanceKey', authorizeIntegrai, async (req, res) => {
     const key = req.params.instanceKey;
     const inst = await ensureInstanceStarted(key);
-    if (inst?.qr) return res.json({ qrcode: inst.qr, status: 'qrcode' });
+
+    // Se já estiver conectado
     if (inst?.sock?.user) return res.json({ status: 'connected' });
-    return res.json({ status: 'connecting', message: 'Iniciando conexão...' });
+
+    // Aguardar QR Code por até 10 segundos se não tiver um agora
+    if (!inst?.qr) {
+        let attempts = 0;
+        while (!inst?.qr && attempts < 20) {
+            await new Promise(r => setTimeout(r, 500));
+            attempts++;
+        }
+    }
+
+    if (inst?.qr) {
+        return res.json({
+            qrcode: inst.qr, // Retornar direto no JSON como a Evolution API faz
+            status: 'qrcode'
+        });
+    }
+
+    return res.json({ status: 'connecting', message: 'Iniciando conexão, aguarde o QR Code...' });
 });
 
 app.get('/contacts', authorizeIntegrai, async (req, res) => {
@@ -243,7 +285,9 @@ app.post("/message/sendText/:instanceKey", authorizeIntegrai, async (req, res) =
     try {
         const instKey = req.params.instanceKey;
         const { number, textMessage, text, message } = req.body;
-        const remoteJid = number;
+
+        // Em Evolution, number pode ser apenas o dígito. No Baileys precisamos do JID completo.
+        const remoteJid = number.includes('@') ? number : `${number}@s.whatsapp.net`;
         const content = textMessage?.text || text || message;
 
         const inst = await ensureInstanceStarted(instKey);
@@ -259,6 +303,42 @@ app.post("/message/sendText/:instanceKey", authorizeIntegrai, async (req, res) =
         return res.status(500).json({ error: error.message });
     }
 });
+
+// Alias for Evolution API /instance/connectionState/:key
+app.get('/instance/connectionState/:instanceKey', authorizeIntegrai, async (req, res) => {
+    const key = req.params.instanceKey;
+    const instData = instancesData.find(i => i.key === key);
+    if (!instData) return res.status(404).json({ error: "Not found" });
+
+    return res.json({
+        instance: {
+            state: instData.status === 'connected' ? 'open' : 'disconnected'
+        }
+    });
+});
+
+// Alias for Evolution API /contact/fetchContacts/:instanceKey e /chat/fetchContacts/:instanceKey
+const contactsHandler = async (req, res) => {
+    const key = req.params.instanceKey || req.query.instanceKey;
+    const inst = await ensureInstanceStarted(key);
+    if (!inst) return res.status(404).json({ error: 'Instância não encontrada' });
+
+    // Formato compatível com Evolution API: retornar Array de objetos com { id, name, ... }
+    const contacts = Object.values(inst.contacts).map(c => ({
+        id: c.id,
+        name: c.name || c.verifiedName || c.notify || c.id.split('@')[0],
+        pushName: c.notify || c.verifiedName || c.name,
+        isGroup: c.id.endsWith('@g.us')
+    }));
+
+    return res.json(contacts);
+};
+
+app.get('/contact/fetchContacts/:instanceKey', authorizeIntegrai, contactsHandler);
+app.get('/chat/fetchContacts/:instanceKey', authorizeIntegrai, contactsHandler);
+app.post('/contact/find/:instanceKey', authorizeIntegrai, contactsHandler);
+app.post('/chat/findContacts/:instanceKey', authorizeIntegrai, contactsHandler);
+
 
 // REMOVED: Auto-start all on boot. Now we only start on demand.
 

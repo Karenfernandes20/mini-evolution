@@ -45,7 +45,13 @@ async function startInstance(instKey) {
     if (!fs.existsSync(instDir)) fs.mkdirSync(instDir);
 
     const { state, saveCreds } = await useMultiFileAuthState(instDir);
-    const { version } = await fetchLatestBaileysVersion();
+    let version = [6, 33, 0];
+    try {
+        const fetchRes = await fetchLatestBaileysVersion();
+        version = fetchRes.version;
+    } catch (e) {
+        console.warn(`[Mini-Evo] Failed to fetch latest Baileys version, using default: ${version.join('.')}`);
+    }
 
     const sock = makeWASocket({
         version,
@@ -217,8 +223,8 @@ app.delete('/management/instances/:key', (req, res) => {
 
 // Middleware de Autenticação para Integrai
 function authorizeIntegrai(req, res, next) {
-    const token = req.headers['apikey'] || req.query.token || req.body.token;
-    const instKey = req.query.instanceKey || req.body.instanceKey || req.params.instanceKey;
+    const token = req.headers['apikey'] || req.query?.token || req.body?.token;
+    const instKey = req.query?.instanceKey || req.body?.instanceKey || req.params?.instanceKey;
 
     console.log(`[Auth] Checking auth for instance: ${instKey} with token: ${token ? 'PROVIDED' : 'MISSING'}`);
 
@@ -292,41 +298,54 @@ app.get('/get-qr', authorizeIntegrai, async (req, res) => {
 
 // Alias for Evolution API /instance/connect/:key
 app.get('/instance/connect/:instanceKey', authorizeIntegrai, async (req, res) => {
-    const key = req.params.instanceKey;
-    console.log(`[Connect] Request to connect instance: ${key}`);
-    const inst = await ensureInstanceStarted(key);
+    try {
+        const key = req.params.instanceKey;
+        console.log(`[Connect] Request to connect instance: ${key}`);
+        const inst = await ensureInstanceStarted(key);
 
-    // Se já estiver conectado
-    if (inst?.sock?.user) {
-        console.log(`[Connect] Instance ${key} is already connected.`);
-        return res.json({ status: 'connected' });
-    }
-
-    // Aguardar QR Code por até 30 segundos se não tiver um agora
-    if (!inst?.qr) {
-        console.log(`[Connect] No QR yet for ${key}, waiting...`);
-        let attempts = 0;
-        while (!inst?.qr && attempts < 60) { // 30 segundos
-            if (inst?.sock?.user) break; // Se conectou no meio tempo
-            await new Promise(r => setTimeout(r, 500));
-            attempts++;
+        if (!inst) {
+            return res.status(404).json({ error: 'Instância não pôde ser iniciada' });
         }
-    }
 
-    if (inst?.sock?.user) {
-        return res.json({ status: 'connected' });
-    }
+        // Se já estiver conectado
+        if (inst?.sock?.user) {
+            console.log(`[Connect] Instance ${key} is already connected.`);
+            return res.json({ status: 'connected' });
+        }
 
-    if (inst?.qr) {
-        console.log(`[Connect] Returning QR for ${key}`);
-        return res.json({
-            qrcode: inst.qr,
-            status: 'qrcode'
+        // Aguardar QR Code por até 30 segundos se não tiver um agora
+        if (!inst?.qr) {
+            console.log(`[Connect] No QR yet for ${key}, waiting...`);
+            let attempts = 0;
+            while (!inst?.qr && attempts < 60) { // 30 segundos
+                if (inst?.sock?.user) break; // Se conectou no meio tempo
+                await new Promise(r => setTimeout(r, 500));
+                attempts++;
+            }
+        }
+
+        if (inst?.sock?.user) {
+            return res.json({ status: 'connected' });
+        }
+
+        if (inst?.qr) {
+            console.log(`[Connect] Returning QR for ${key}`);
+            return res.json({
+                qrcode: inst.qr,
+                status: 'qrcode'
+            });
+        }
+
+        console.log(`[Connect] Timed out waiting for QR for ${key}`);
+        return res.json({ status: 'connecting', message: 'Iniciando conexão, aguarde o QR Code...' });
+    } catch (err) {
+        console.error(`[Connect Error] Critical failure for ${req.params.instanceKey}:`, err);
+        return res.status(500).json({
+            error: 'Erro interno ao iniciar instância',
+            message: err.message,
+            stack: process.env.NODE_ENV === 'development' ? err.stack : undefined
         });
     }
-
-    console.log(`[Connect] Timed out waiting for QR for ${key}`);
-    return res.json({ status: 'connecting', message: 'Iniciando conexão, aguarde o QR Code...' });
 });
 
 app.get('/contacts', authorizeIntegrai, async (req, res) => {

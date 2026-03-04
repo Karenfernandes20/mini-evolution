@@ -51,6 +51,34 @@
 </head>
 
 <body class="p-4 md:p-8">
+    <!-- Login Overlay -->
+    <div id="login-overlay"
+        class="fixed inset-0 z-[100] bg-[#16213e] flex items-center justify-center p-4 transition-opacity duration-300">
+        <div
+            class="glass p-8 w-full max-w-md rounded-3xl text-center space-y-6 animate-in fade-in zoom-in duration-300">
+            <div>
+                <h2 class="text-3xl font-extrabold mb-2 gradient-text">Acesso Restrito</h2>
+                <p class="text-slate-400 text-sm">Insira suas credenciais para gerenciar instâncias</p>
+            </div>
+            <div class="space-y-4 text-left">
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">E-mail</label>
+                    <input type="email" id="login-email" placeholder="seuemail@empresa.com"
+                        class="w-full bg-slate-800/50 border border-slate-700 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-purple-500 outline-none">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-slate-400 mb-2">Senha</label>
+                    <input type="password" id="login-password" placeholder="••••••••"
+                        class="w-full bg-slate-800/50 border border-slate-700 rounded-2xl px-4 py-3 focus:ring-2 focus:ring-purple-500 outline-none"
+                        onkeypress="if(event.key === 'Enter') doLogin()">
+                </div>
+            </div>
+            <button onclick="doLogin()"
+                class="w-full btn-primary py-3 rounded-2xl font-semibold text-white mt-4 shadow-lg">Entrar no
+                Painel</button>
+            <p id="login-error" class="text-red-400 text-sm hidden font-semibold"></p>
+        </div>
+    </div>
     <div class="max-w-6xl mx-auto space-y-8">
         <!-- Header -->
         <header class="flex flex-col md:flex-row justify-between items-center gap-6 glass rounded-3xl p-8 mb-12">
@@ -61,6 +89,19 @@
                 <p class="text-slate-400 font-light">Gerencie suas instâncias do WhatsApp de forma isolada e segura.</p>
             </div>
             <div class="flex items-center gap-4">
+                <button onclick="openLogs()"
+                    class="glass flex items-center gap-2 px-4 py-3 rounded-2xl font-semibold text-slate-300 hover:text-white transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
+                        stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Logs
+                </button>
+                <button onclick="logout()"
+                    class="glass flex items-center gap-2 px-4 py-3 rounded-2xl font-semibold text-slate-300 hover:text-white transition-colors">
+                    Sair
+                </button>
                 <button onclick="createInstance()"
                     class="btn-primary flex items-center gap-2 px-6 py-3 rounded-2xl font-semibold text-white">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24"
@@ -133,10 +174,96 @@
         </div>
     </div>
 
+    <!-- Modal Logs -->
+    <div id="logs-modal"
+        class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden flex flex-col items-center justify-center p-4 z-50">
+        <div
+            class="glass p-6 rounded-[2rem] w-full max-w-4xl max-h-[90vh] flex flex-col animate-in fade-in zoom-in duration-300 relative">
+            <button onclick="closeLogs()"
+                class="absolute top-6 right-6 p-2 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+            <h3 class="text-2xl font-bold mb-4 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-purple-400" fill="none" viewBox="0 0 24 24"
+                    stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Console Logs
+            </h3>
+            <div class="flex gap-2 mb-4">
+                <button onclick="fetchLogs()"
+                    class="px-4 py-2 text-sm bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 rounded-xl font-semibold transition-colors">Atualizar</button>
+            </div>
+            <div class="flex-1 overflow-auto rounded-xl bg-slate-900/80 p-4 border border-slate-800 font-mono text-xs text-slate-300 space-y-2 custom-scrollbar"
+                id="logs-container">
+                <p class="text-slate-500 italic">Carregando logs...</p>
+            </div>
+        </div>
+    </div>
+
     <script>
+        const API_TOKEN = localStorage.getItem('minievo_admin_token');
+
+        function checkAuth() {
+            if (API_TOKEN) {
+                document.getElementById('login-overlay').classList.add('hidden');
+                loadInstances();
+                setInterval(loadInstances, 10000);
+            } else {
+                document.getElementById('login-overlay').classList.remove('hidden');
+            }
+        }
+
+        async function doLogin() {
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            const errEl = document.getElementById('login-error');
+            errEl.classList.add('hidden');
+
+            if (!email || !password) {
+                errEl.innerText = 'Preencha todos os campos';
+                errEl.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/admin/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                if (res.ok) {
+                    const data = await res.json();
+                    localStorage.setItem('minievo_admin_token', data.token);
+                    window.location.reload();
+                } else {
+                    errEl.innerText = 'E-mail ou senha inválidos';
+                    errEl.classList.remove('hidden');
+                }
+            } catch (err) {
+                errEl.innerText = 'Erro ao conectar ao servidor';
+                errEl.classList.remove('hidden');
+            }
+        }
+
+        async function fetchAuth(url, options = {}) {
+            if (!options.headers) options.headers = {};
+            options.headers['Authorization'] = `Bearer ${localStorage.getItem('minievo_admin_token')}`;
+            const res = await fetch(url, options);
+            if (res.status === 401) {
+                localStorage.removeItem('minievo_admin_token');
+                window.location.reload();
+            }
+            return res;
+        }
+
         async function loadInstances() {
             try {
-                const res = await fetch('/management/instances');
+                const res = await fetchAuth('/management/instances');
                 const data = await res.json();
                 const container = document.getElementById('instances-container');
                 const activeCount = document.getElementById('active-count');
@@ -191,7 +318,7 @@
             if (!name) return alert('Digite um nome!');
 
             try {
-                const res = await fetch('/management/instances', {
+                const res = await fetchAuth('/management/instances', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ name })
@@ -218,7 +345,7 @@
             }
 
             try {
-                const res = await fetch(`/management/instances/${key}`, {
+                const res = await fetchAuth(`/management/instances/${key}`, {
                     method: 'DELETE',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ confirmName })
@@ -235,13 +362,54 @@
             }
         }
 
+        function openLogs() {
+            document.getElementById('logs-modal').classList.remove('hidden');
+            fetchLogs();
+            window.logsInterval = setInterval(fetchLogs, 5000);
+        }
+
+        function closeLogs() {
+            document.getElementById('logs-modal').classList.add('hidden');
+            if (window.logsInterval) clearInterval(window.logsInterval);
+        }
+
+        async function fetchLogs() {
+            try {
+                const res = await fetchAuth('/api/admin/logs');
+                if (res.ok) {
+                    const logsData = await res.json();
+                    const container = document.getElementById('logs-container');
+                    if (logsData.length === 0) {
+                        container.innerHTML = '<p class="text-slate-500 italic">Nenhum log encontrado.</p>';
+                        return;
+                    }
+                    container.innerHTML = logsData.map(log => {
+                        let colorClass = 'text-green-400';
+                        if (log.level === 'ERROR') colorClass = 'text-red-400 font-bold';
+                        if (log.level === 'WARN') colorClass = 'text-amber-400 font-semibold';
+
+                        const date = new Date(log.ts);
+                        const timeStr = date.toLocaleTimeString('pt-BR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }) + '.' + date.getMilliseconds().toString().padStart(3, '0');
+
+                        return `<div class="break-words border-b border-slate-800/50 pb-1 mb-1"><span class="text-slate-600 mr-2">[${timeStr}]</span><span class="${colorClass}">${log.msg}</span></div>`;
+                    }).join('');
+                }
+            } catch (e) {
+                console.error('Failed to fetch logs', e);
+            }
+        }
+
         function copyToClipboard(text) {
             navigator.clipboard.writeText(text);
             alert('Token copiado para a área de transferência!');
         }
 
-        loadInstances();
-        setInterval(loadInstances, 10000);
+        function logout() {
+            localStorage.removeItem('minievo_admin_token');
+            window.location.reload();
+        }
+
+        checkAuth();
     </script>
 </body>
 

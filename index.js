@@ -21,6 +21,26 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// --- CAPTURA DE LOGS ---
+const logLines = [];
+const MAX_LOGS = 500;
+
+function captureLog(level, ...args) {
+    const ts = new Date().toISOString();
+    const msg = args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' ');
+    logLines.unshift({ ts, level, msg });
+    if (logLines.length > MAX_LOGS) logLines.pop();
+}
+
+const originalLog = console.log;
+const originalWarn = console.warn;
+const originalError = console.error;
+
+console.log = (...args) => { captureLog('INFO', ...args); originalLog(...args); };
+console.warn = (...args) => { captureLog('WARN', ...args); originalWarn(...args); };
+console.error = (...args) => { captureLog('ERROR', ...args); originalError(...args); };
+// ------------------------
+
 // DATA STORAGE
 const INSTANCES_FILE = path.resolve(__dirname, "instances.json");
 const AUTH_BASE_DIR = path.resolve(__dirname, "sessions");
@@ -174,12 +194,42 @@ async function startInstance(instKey) {
     return instObj;
 }
 
+// --- MÓDULO DE LOGIN DO PAINEL ---
+const ADMIN_EMAIL = 'integraiempresa01@gmail.com';
+const ADMIN_PASS = 'Integr1234';
+const ADMIN_TOKEN = 'minievo-session-token-998877';
+
+app.post('/api/admin/login', (req, res) => {
+    const { email, password } = req.body;
+    if (email === ADMIN_EMAIL && password === ADMIN_PASS) {
+        res.json({ token: ADMIN_TOKEN, success: true });
+    } else {
+        res.status(401).json({ error: 'Credenciais inválidas' });
+    }
+});
+
+function authorizeAdmin(req, res, next) {
+    const token = req.headers.authorization;
+    if (token === `Bearer ${ADMIN_TOKEN}`) {
+        return next();
+    }
+    // Permite conexões do Integrai que enviam apikey
+    if (req.headers['apikey']) {
+        return next();
+    }
+    return res.status(401).json({ error: 'Acesso não autorizado ao painel' });
+}
+
 // MANAGEMENT ENDPOINTS
-app.get('/management/instances', (req, res) => {
+app.get('/management/instances', authorizeAdmin, (req, res) => {
     res.json(instancesData);
 });
 
-app.post('/management/instances', (req, res) => {
+app.get('/api/admin/logs', authorizeAdmin, (req, res) => {
+    res.json(logLines);
+});
+
+app.post('/management/instances', authorizeAdmin, (req, res) => {
     const { name, key: providedKey, token: providedToken } = req.body;
     if (!name && !providedKey) return res.status(400).json({ error: 'Nome ou Key é obrigatório' });
 
@@ -206,7 +256,7 @@ app.post('/management/instances', (req, res) => {
     res.json(newInstance);
 });
 
-app.delete('/management/instances/:key', (req, res) => {
+app.delete('/management/instances/:key', authorizeAdmin, (req, res) => {
     const { key } = req.params;
     const { confirmName } = req.body;
 

@@ -97,7 +97,20 @@ async function startInstance(instKey) {
             // Notify Integrai about QR
             axios.post(`${WEBHOOK_URL_BASE}/${instKey}`, { event: "qrcode", qr })
                 .then(() => console.log(`[Mini-Evo] Webhook de QR enviado para ${instKey}`))
-                .catch(err => console.error(`[Mini-Evo] Erro ao enviar webhook QR: ${err.message}`));
+                .catch(err => {
+                    console.error(`[Mini-Evo] Erro ao enviar webhook QR: ${err.message}`);
+                    if (err.response?.status === 404) {
+                        console.log(`[Mini-Evo] Instância ${instKey} retornou 404 do Integrai. Removendo sessão local...`);
+                        try {
+                            const idx = instancesData.findIndex(i => i.key === instKey);
+                            if (idx !== -1) instancesData.splice(idx, 1);
+                            cacheInstanceConfig();
+                            if (instObj?.sock) instObj.sock.logout().catch(() => { });
+                            instances.delete(instKey);
+                            fs.rmSync(instDir, { recursive: true, force: true });
+                        } catch (e) { }
+                    }
+                });
         }
 
         if (connection === "open") {
@@ -307,8 +320,10 @@ app.get('/instance/connect/:instanceKey', authorizeIntegrai, async (req, res) =>
             return res.status(404).json({ error: 'Instância não pôde ser iniciada' });
         }
 
+        const instData = instancesData.find(i => i.key === key);
+
         // Se já estiver conectado
-        if (inst?.sock?.user) {
+        if (instData?.status === 'connected') {
             console.log(`[Connect] Instance ${key} is already connected.`);
             return res.json({ status: 'connected' });
         }
@@ -318,13 +333,15 @@ app.get('/instance/connect/:instanceKey', authorizeIntegrai, async (req, res) =>
             console.log(`[Connect] No QR yet for ${key}, waiting...`);
             let attempts = 0;
             while (!inst?.qr && attempts < 60) { // 30 segundos
-                if (inst?.sock?.user) break; // Se conectou no meio tempo
+                const currentData = instancesData.find(i => i.key === key);
+                if (currentData?.status === 'connected') break; // Se conectou no meio tempo
                 await new Promise(r => setTimeout(r, 500));
                 attempts++;
             }
         }
 
-        if (inst?.sock?.user) {
+        const finalData = instancesData.find(i => i.key === key);
+        if (finalData?.status === 'connected') {
             return res.json({ status: 'connected' });
         }
 

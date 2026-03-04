@@ -120,15 +120,7 @@ async function startInstance(instKey) {
                 .catch(err => {
                     console.error(`[Mini-Evo] Erro ao enviar webhook QR: ${err.message}`);
                     if (err.response?.status === 404) {
-                        console.log(`[Mini-Evo] Instância ${instKey} retornou 404 do Integrai. Removendo sessão local...`);
-                        try {
-                            const idx = instancesData.findIndex(i => i.key === instKey);
-                            if (idx !== -1) instancesData.splice(idx, 1);
-                            cacheInstanceConfig();
-                            if (instObj?.sock) instObj.sock.logout().catch(() => { });
-                            instances.delete(instKey);
-                            fs.rmSync(instDir, { recursive: true, force: true });
-                        } catch (e) { }
+                        console.log(`[Mini-Evo] Aviso: Instância ${instKey} retornou 404 do Integrai. Certifique-se que ela existe no banco de dados do Integrai.`);
                     }
                 });
         }

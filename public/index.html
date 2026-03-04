@@ -294,9 +294,12 @@
                                 <code class="text-purple-400 font-mono text-xs">${inst.token}</code>
                             </div>
                         </div>
-                        <div class="flex gap-2">
-                            <button onclick="deleteInstance('${inst.key}')" class="p-3 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors flex-1 text-sm font-semibold">Deletar</button>
-                            <button onclick="copyToClipboard('${inst.token}')" class="p-3 rounded-xl bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors flex-1 text-sm font-semibold">Copiar Token</button>
+                        <div class="flex flex-col gap-2">
+                            <button onclick="disconnectInstance('${inst.key}')" class="p-2 w-full rounded-xl bg-amber-500/10 text-amber-500 hover:bg-amber-500/20 transition-colors text-sm font-semibold border border-amber-500/20">Desconectar Sessão</button>
+                            <div class="flex gap-2">
+                                <button onclick="deleteInstance('${inst.key}')" class="p-2 rounded-xl bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors flex-1 text-xs font-semibold">Excluir</button>
+                                <button onclick="copyToClipboard('${inst.token}')" class="p-2 rounded-xl bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 transition-colors flex-1 text-xs font-semibold">Copiar API Key</button>
+                            </div>
                         </div>
                     </div>
                 `).join('');
@@ -359,6 +362,28 @@
                 }
             } catch (err) {
                 alert('Erro na rede ao tentar deletar');
+            }
+        }
+
+        async function disconnectInstance(key) {
+            const confirm = confirm(`Tem certeza que deseja DESCONECTAR a instância "${key}"?\n\nIsso irá limpar o cache do WhatsApp para você ler um novo QRCode.`);
+            if (!confirm) return;
+
+            try {
+                const res = await fetchAuth(`/management/instances/${key}/disconnect`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+                if (res.ok) {
+                    loadInstances();
+                    alert(`Instância ${key} foi desconectada e limpa.`);
+                } else {
+                    const err = await res.json();
+                    alert(err.error || 'Erro ao desconectar');
+                }
+            } catch (err) {
+                alert('Erro na rede ao tentar desconectar');
             }
         }
 

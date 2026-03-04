@@ -284,6 +284,29 @@ app.delete('/management/instances/:key', authorizeAdmin, (req, res) => {
     res.json({ success: true });
 });
 
+app.post('/management/instances/:key/disconnect', authorizeAdmin, (req, res) => {
+    const { key } = req.params;
+
+    const idx = instancesData.findIndex(i => i.key === key);
+    if (idx === -1) return res.status(404).json({ error: 'Não encontrado' });
+
+    // Stop socket if running
+    const inst = instances.get(key);
+    if (inst?.sock) inst.sock.logout().catch(() => { });
+    instances.delete(key);
+
+    // Delete session files
+    try {
+        fs.rmSync(path.join(AUTH_BASE_DIR, key), { recursive: true, force: true });
+    } catch (e) { }
+
+    instancesData[idx].status = 'disconnected';
+    cacheInstanceConfig();
+
+    console.log(`[Management] Instance disconnected: ${key}`);
+    res.json({ success: true, message: 'Instância desconectada.' });
+});
+
 // Middleware de Autenticação para Integrai
 function authorizeIntegrai(req, res, next) {
     const token = req.headers['apikey'] || req.query?.token || req.body?.token;

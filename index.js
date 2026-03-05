@@ -44,7 +44,7 @@ console.error = (...args) => { captureLog('ERROR', ...args); originalError(...ar
 // DATA STORAGE
 const INSTANCES_FILE = path.resolve(__dirname, "instances.json");
 const AUTH_BASE_DIR = path.resolve(__dirname, "sessions");
-const WEBHOOK_URL_BASE = process.env.WEBHOOK_URL_BASE || 'http://127.0.0.1:3000/api/minievo/webhook';
+const WEBHOOK_URL_BASE = process.env.WEBHOOK_URL_BASE || 'https://integrai.onrender.com/api/minievo/webhook';
 
 // Ensure directories exist
 if (!fs.existsSync(AUTH_BASE_DIR)) fs.mkdirSync(AUTH_BASE_DIR);
@@ -180,7 +180,14 @@ async function startInstance(instKey) {
                     messages: [message],
                     groupName: groupName // Mandar o nome do grupo para o Integrai
                 }
-            }).catch(() => { });
+            })
+                .then(() => console.log(`[Mini-Evo] Webhook messages.upsert enviado para ${instKey}`))
+                .catch((err) => {
+                    console.error(`[Mini-Evo] Erro ao enviar webhook messages.upsert: ${err.message}`);
+                    if (err.response) {
+                        console.error(`[Mini-Evo] Status do Webhook falho: ${err.response.status} - Data:`, err.response.data);
+                    }
+                });
         }
     });
     return instObj;

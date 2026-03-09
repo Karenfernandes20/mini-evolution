@@ -515,6 +515,36 @@ app.get('/chat/fetchContacts/:instanceKey', authorizeIntegrai, contactsHandler);
 app.post('/contact/find/:instanceKey', authorizeIntegrai, contactsHandler);
 app.post('/chat/findContacts/:instanceKey', authorizeIntegrai, contactsHandler);
 
+// Endpoint para buscar a foto de perfil do contato ou grupo (Compatível com Evolution API)
+app.post('/chat/fetchProfilePictureUrl/:instanceKey', authorizeIntegrai, async (req, res) => {
+    try {
+        const instKey = req.params.instanceKey;
+        const { number } = req.body;
+
+        if (!number) return res.status(400).json({ error: "Number/JID not provided" });
+
+        const inst = await ensureInstanceStarted(instKey);
+        if (!inst?.sock) return res.status(500).json({ error: "Instância desconectada" });
+
+        let remoteJid = number;
+        if (!remoteJid.includes('@')) {
+            remoteJid = `${number}@s.whatsapp.net`;
+        }
+
+        let profilePictureUrl = null;
+        try {
+            // Consulta no provedor a foto atual (high-res 'image')
+            profilePictureUrl = await inst.sock.profilePictureUrl(remoteJid, 'image');
+        } catch (err) {
+            // Muitas vezes o contato não tem foto ou a foto é privada. Não logar como erro fatal.
+        }
+
+        return res.json({ profilePictureUrl });
+    } catch (error) {
+        return res.status(500).json({ error: error.message, profilePictureUrl: null });
+    }
+});
+
 
 // REMOVED: Auto-start all on boot. Now we only start on demand.
 

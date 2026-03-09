@@ -42,7 +42,7 @@ console.error = (...args) => { captureLog('ERROR', ...args); originalError(...ar
 // ------------------------
 
 // DATA STORAGE
-const INSTANCES_FILE = path.resolve(__dirname, "instances.json");
+const INSTANCES_FILE = path.resolve(__dirname, "sessions", "instances.json");
 const AUTH_BASE_DIR = path.resolve(__dirname, "sessions");
 const WEBHOOK_URL_BASE = process.env.WEBHOOK_URL_BASE || 'https://integrai.onrender.com/api/minievo/webhook';
 

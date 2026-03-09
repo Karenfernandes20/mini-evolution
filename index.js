@@ -545,6 +545,43 @@ app.post('/chat/fetchProfilePictureUrl/:instanceKey', authorizeIntegrai, async (
     }
 });
 
+// Endpoint para buscar informações de um grupo (Compatível com Evolution API)
+app.get('/group/findGroup/:instanceKey', authorizeIntegrai, async (req, res) => {
+    try {
+        const instKey = req.params.instanceKey;
+        const groupJid = req.query.groupJid;
+
+        if (!groupJid) return res.status(400).json({ error: "groupJid not provided" });
+
+        const inst = await ensureInstanceStarted(instKey);
+        if (!inst?.sock) return res.status(500).json({ error: "Instância desconectada" });
+
+        const metadata = await inst.sock.groupMetadata(groupJid);
+
+        let profilePictureUrl = null;
+        try {
+            profilePictureUrl = await inst.sock.profilePictureUrl(groupJid, 'image');
+        } catch (e) { }
+
+        return res.json({
+            id: metadata.id,
+            subject: metadata.subject,
+            subjectOwner: metadata.subjectOwner,
+            subjectTime: metadata.subjectTime,
+            creation: metadata.creation,
+            owner: metadata.owner,
+            desc: metadata.desc,
+            descOwner: metadata.descOwner,
+            descTime: metadata.descTime,
+            profilePictureUrl,
+            picture: profilePictureUrl,
+            participants: metadata.participants
+        });
+    } catch (error) {
+        return res.status(500).json({ error: error.message });
+    }
+});
+
 
 // REMOVED: Auto-start all on boot. Now we only start on demand.
 

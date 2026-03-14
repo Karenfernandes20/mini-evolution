@@ -15,7 +15,7 @@ export class InstanceController {
   }
 
   async connect(req: Request, res: Response) {
-    const { instance } = req.params;
+    const instance = (req.params.instance as string).toLowerCase();
     const provider = await instanceService.startInstance(instance);
     const data = await instanceService.getInstance(instance);
     
@@ -33,20 +33,20 @@ export class InstanceController {
   }
 
   async status(req: Request, res: Response) {
-    const { instance } = req.params;
+    const instance = (req.params.instance as string).toLowerCase();
     const data = await instanceService.getInstance(instance);
     if (!data) return res.status(404).json({ error: 'Instance not found' });
     return res.json(data);
   }
 
   async delete(req: Request, res: Response) {
-    const { instance } = req.params;
+    const instance = (req.params.instance as string).toLowerCase();
     await instanceService.deleteInstance(instance);
     return res.json({ success: true });
   }
 
   async restart(req: Request, res: Response) {
-    const { instance } = req.params;
+    const instance = (req.params.instance as string).toLowerCase();
     await instanceService.deleteInstance(instance); // Simplified: logout and re-create
     await instanceService.startInstance(instance);
     return res.json({ success: true });

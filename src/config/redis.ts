@@ -13,5 +13,5 @@ redisConnection.on('connect', () => {
 });
 
 redisConnection.on('error', (err) => {
-    logger.error('❌ Redis Connection Error:', err);
+    logger.error(err, '❌ Redis Connection Error:');
 });

@@ -24,8 +24,18 @@ class InstanceService {
     if (fs.existsSync(this.instancesFile)) {
       try {
         const data = JSON.parse(fs.readFileSync(this.instancesFile, 'utf-8'));
-        data.forEach((inst: InstanceData) => {
-          this.instancesData.set(inst.key, inst);
+        data.forEach((inst: any) => {
+          const normalized: InstanceData = {
+              key: inst.key.toLowerCase(),
+              name: inst.name || inst.key,
+              token: inst.token,
+              status: inst.status,
+              phone: inst.phone,
+              webhookUrl: inst.webhookUrl,
+              createdAt: inst.createdAt ? new Date(inst.createdAt) : (inst.created_at ? new Date(inst.created_at) : new Date()),
+              updatedAt: inst.updatedAt ? new Date(inst.updatedAt) : (inst.updated_at ? new Date(inst.updated_at) : new Date()),
+          };
+          this.instancesData.set(normalized.key, normalized);
         });
       } catch (e) {
         logger.error(e, 'Failed to load instances from cache');
@@ -39,12 +49,13 @@ class InstanceService {
   }
 
   async createInstance(key: string, name?: string, token?: string, webhookUrl?: string) {
-    if (this.instancesData.has(key)) {
-      return this.instancesData.get(key);
+    const normalizedKey = key.toLowerCase();
+    if (this.instancesData.has(normalizedKey)) {
+      return this.instancesData.get(normalizedKey);
     }
 
     const instance: InstanceData = {
-      key,
+      key: normalizedKey,
       name: name || key,
       token: token || `me_${Math.random().toString(36).substring(7)}`,
       status: 'disconnected',
@@ -53,39 +64,40 @@ class InstanceService {
       updatedAt: new Date(),
     };
 
-    this.instancesData.set(key, instance);
+    this.instancesData.set(normalizedKey, instance);
     this.saveToCache();
     
     // Auto-start
-    await this.startInstance(key);
+    await this.startInstance(normalizedKey);
     
     return instance;
   }
 
   async startInstance(key: string) {
-    if (this.providers.has(key)) return this.providers.get(key);
+    const normalizedKey = key.toLowerCase();
+    if (this.providers.has(normalizedKey)) return this.providers.get(normalizedKey);
 
-    const provider = new WhatsAppProvider(key);
-    this.providers.set(key, provider);
+    const provider = new WhatsAppProvider(normalizedKey);
+    this.providers.set(normalizedKey, provider);
 
     provider.on('connection.qr', (qr) => {
-        this.updateStatus(key, 'qrcode', { qr });
+        this.updateStatus(normalizedKey, 'qrcode', { qr });
     });
 
     provider.on('connection.open', (user) => {
-        this.updateStatus(key, 'connected', { phone: user.id.split(':')[0] });
+        this.updateStatus(normalizedKey, 'connected', { phone: user.id.split(':')[0] });
     });
 
     provider.on('connection.close', ({ shouldReconnect }) => {
-        this.updateStatus(key, 'disconnected');
+        this.updateStatus(normalizedKey, 'disconnected');
         if (!shouldReconnect) {
-            this.providers.delete(key);
+            this.providers.delete(normalizedKey);
         }
     });
 
     // Handle messages relaying to webhook
     provider.on('messages.upsert', async (m) => {
-        await webhookService.dispatch(key, 'messages.upsert', m);
+        await webhookService.dispatch(normalizedKey, 'messages.upsert', m);
     });
 
     await provider.init();
@@ -93,7 +105,8 @@ class InstanceService {
   }
 
   private updateStatus(key: string, status: InstanceStatus, extra: any = {}) {
-    const data = this.instancesData.get(key);
+    const normalizedKey = key.toLowerCase();
+    const data = this.instancesData.get(normalizedKey);
     if (data) {
       data.status = status;
       if (extra.phone) data.phone = extra.phone;
@@ -105,21 +118,21 @@ class InstanceService {
                     status === 'qrcode' ? 'connection.qr' : 
                     status === 'disconnected' ? 'connection.close' : 'connection.update';
       
-      webhookService.dispatch(key, event, {
+      webhookService.dispatch(normalizedKey, event, {
           status,
           ...extra
-      }).catch(err => logger.error(`Error dispatching webhook for ${key}:`, err));
+      }).catch(err => logger.error(err, `Error dispatching webhook for ${normalizedKey}`));
 
-      logger.info(`Instance [${key}] status changed to ${status}`);
+      logger.info(`Instance [${normalizedKey}] status changed to ${status}`);
     }
   }
 
   async getInstance(key: string) {
-    return this.instancesData.get(key);
+    return this.instancesData.get(key.toLowerCase());
   }
 
   async getProvider(key: string) {
-    return this.providers.get(key);
+    return this.providers.get(key.toLowerCase());
   }
 
   async listInstances() {
@@ -127,16 +140,17 @@ class InstanceService {
   }
 
   async deleteInstance(key: string) {
-    const provider = this.providers.get(key);
+    const normalizedKey = key.toLowerCase();
+    const provider = this.providers.get(normalizedKey);
     if (provider) {
       await provider.logout();
-      this.providers.delete(key);
+      this.providers.delete(normalizedKey);
     }
-    this.instancesData.delete(key);
+    this.instancesData.delete(normalizedKey);
     this.saveToCache();
     
     // Remove session directory
-    const sessionDir = path.resolve(__dirname, '..', '..', 'sessions', key);
+    const sessionDir = path.resolve(__dirname, '..', '..', 'sessions', normalizedKey);
     if (fs.existsSync(sessionDir)) {
         fs.rmSync(sessionDir, { recursive: true, force: true });
     }

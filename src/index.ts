@@ -1,11 +1,11 @@
 import express from 'express';
-import 'express-async-errors';
 import cors from 'cors';
 import { env } from './config/env.js';
 import logger from './utils/logger.js';
 import instanceRoutes from './routes/instance.routes.js';
 import messageRoutes from './routes/message.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
+import compatibilityRoutes from './routes/compatibility.routes.js';
 import { authMiddleware } from './middlewares/auth.middleware.js';
 
 const app = express();
@@ -16,7 +16,10 @@ app.use(express.json({ limit: '50mb' }));
 // Health Check
 app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date() }));
 
-// Routes
+// Compatibility Routes (Support for old system endpoints)
+app.use('/', authMiddleware, compatibilityRoutes);
+
+// Structured Routes
 app.use('/instance', authMiddleware, instanceRoutes);
 app.use('/message', authMiddleware, messageRoutes);
 app.use('/webhook', authMiddleware, webhookRoutes);

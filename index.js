@@ -308,10 +308,16 @@ app.post('/management/instances/:key/disconnect', authorizeAdmin, (req, res) => 
 
 // Middleware de Autenticação para Integrai
 function authorizeIntegrai(req, res, next) {
-    const token = req.headers['apikey'] || req.query?.token || req.body?.token;
-    const instKey = req.query?.instanceKey || req.body?.instanceKey || req.params?.instanceKey;
+    let token = req.headers['apikey'] || req.query?.token || req.body?.token;
+    let instKeyRaw = req.query?.instanceKey || req.body?.instanceKey || req.params?.instanceKey || req.params?.instance;
+    
+    if (!instKeyRaw) {
+        return res.status(400).json({ error: "Instância não especificada" });
+    }
 
-    console.log(`[Auth] Checking auth for instance: ${instKey} with token: ${token ? 'PROVIDED' : 'MISSING'}`);
+    const instKey = instKeyRaw.toLowerCase();
+    
+    console.log(`[Auth] Checking auth for instance: ${instKey} (Original: ${instKeyRaw}) with token: ${token ? 'PROVIDED' : 'MISSING'}`);
 
     if (!token) {
         console.warn(`[Auth] Missing token for instance ${instKey}`);
@@ -375,7 +381,7 @@ async function ensureInstanceStarted(instKey) {
 
 // INTEGRAI INTERACTION ENDPOINTS (Now Auth Protected)
 app.get('/get-qr', authorizeIntegrai, async (req, res) => {
-    const key = req.query.instanceKey;
+    const key = (req.query.instanceKey || req.query.instance || '').toString().toLowerCase();
     const inst = await ensureInstanceStarted(key);
     if (inst?.qr) return res.json({ qr: inst.qr });
     return res.status(404).json({ error: 'QR not available' });
@@ -384,7 +390,7 @@ app.get('/get-qr', authorizeIntegrai, async (req, res) => {
 // Alias for Evolution API /instance/connect/:key
 app.get('/instance/connect/:instanceKey', authorizeIntegrai, async (req, res) => {
     try {
-        const key = req.params.instanceKey;
+        const key = req.params.instanceKey.toLowerCase();
         console.log(`[Connect] Request to connect instance: ${key}`);
         const inst = await ensureInstanceStarted(key);
 
@@ -447,7 +453,8 @@ app.get('/contacts', authorizeIntegrai, async (req, res) => {
 app.post("/send-message", authorizeIntegrai, async (req, res) => {
     try {
         const { instanceKey, remoteJid, text } = req.body;
-        const inst = await ensureInstanceStarted(instanceKey);
+        const normalizedKey = instanceKey ? instanceKey.toLowerCase() : null;
+        const inst = await ensureInstanceStarted(normalizedKey);
         if (!inst?.sock) return res.status(500).json({ error: "Instância desconectada" });
         const sentMsg = await inst.sock.sendMessage(remoteJid, { text });
         return res.json({ success: true, messageId: sentMsg?.key?.id });
@@ -459,7 +466,7 @@ app.post("/send-message", authorizeIntegrai, async (req, res) => {
 // Alias for Evolution API sendText
 app.post("/message/sendText/:instanceKey", authorizeIntegrai, async (req, res) => {
     try {
-        const instKey = req.params.instanceKey;
+        const instKey = req.params.instanceKey.toLowerCase();
         const { number, textMessage, text, message } = req.body;
 
         // Em Evolution, number pode ser apenas o dígito. No Baileys precisamos do JID completo.
@@ -482,7 +489,7 @@ app.post("/message/sendText/:instanceKey", authorizeIntegrai, async (req, res) =
 
 // Alias for Evolution API /instance/connectionState/:key
 app.get('/instance/connectionState/:instanceKey', authorizeIntegrai, async (req, res) => {
-    const key = req.params.instanceKey;
+    const key = req.params.instanceKey.toLowerCase();
     const instData = instancesData.find(i => i.key === key);
     if (!instData) return res.status(404).json({ error: "Not found" });
 

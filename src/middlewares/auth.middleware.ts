@@ -15,9 +15,10 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
   }
 
   // Instance specific key check
-  const instanceKey = req.params.instance || req.query.instanceKey;
+  const instanceKey = (req.params.instance || req.query.instanceKey) as string | undefined;
   if (instanceKey) {
-      const instance = await instanceService.getInstance(instanceKey as string);
+      const normalizedKey = instanceKey.toLowerCase();
+      const instance = await instanceService.getInstance(normalizedKey);
       if (instance && instance.token === apiKey) {
           return next();
       }

@@ -17,6 +17,11 @@ class InstanceService {
 
   constructor() {
     this.instancesFile = path.resolve(__dirname, '..', '..', 'sessions', 'instances.json');
+    // Ensure sessions directory exists
+    const sessionsDir = path.dirname(this.instancesFile);
+    if (!fs.existsSync(sessionsDir)) {
+      fs.mkdirSync(sessionsDir, { recursive: true });
+    }
     this.loadFromCache();
   }
 

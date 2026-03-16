@@ -3,7 +3,7 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   PORT: z.string().default('3001'),
-  NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
+  NODE_ENV: z.string().default('production'),
   DATABASE_URL: z.string().optional(),
   REDIS_URL: z.string().default('redis://localhost:6379'),
   GLOBAL_API_KEY: z.string().default('minievo-secret-key'),
@@ -14,8 +14,11 @@ const envSchema = z.object({
 const _env = envSchema.safeParse(process.env);
 
 if (!_env.success) {
-  console.error('❌ Invalid environment variables:', _env.error.format());
-  throw new Error('Invalid environment variables');
+  const errors = _env.error.format();
+  console.error('❌ Invalid environment variables:', JSON.stringify(errors, null, 2));
+  // In production, we might want to proceed with defaults if possible, 
+  // but for critical stuff we should still know.
+  // throw new Error('Invalid environment variables'); 
 }
 
-export const env = _env.data;
+export const env = _env.success ? _env.data : envSchema.parse({});

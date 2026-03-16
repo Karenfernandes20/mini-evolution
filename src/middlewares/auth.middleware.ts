@@ -3,7 +3,7 @@ import { env } from '../config/env.js';
 import { instanceService } from '../services/instance.service.js';
 
 export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
-  const apiKey = req.headers['apikey'] || req.query.apikey;
+  const apiKey = req.headers['apikey'] || req.query.apikey || (req.body && (req.body.apikey || req.body.token));
 
   if (!apiKey) {
     return res.status(401).json({ error: 'Missing API Key' });
@@ -15,9 +15,9 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
   }
 
   // Instance specific key check
-  const instanceKey = (req.params.instance || req.query.instanceKey) as string | undefined;
+  const instanceKey = (req.params.instance || req.query.instanceKey || (req.body && (req.body.instanceKey || req.body.instance))) as string | undefined;
   if (instanceKey) {
-      const normalizedKey = instanceKey.toLowerCase();
+      const normalizedKey = instanceKey.toString().toLowerCase();
       const instance = await instanceService.getInstance(normalizedKey);
       if (instance && instance.token === apiKey) {
           return next();

@@ -104,6 +104,22 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 const PORT = env.PORT || 3001;
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   logger.info(`🚀 Mini-Evolution Pro running on port ${PORT}`);
 });
+
+const shutdown = (signal: NodeJS.Signals) => {
+  logger.info(`[${signal}] graceful shutdown started`);
+  server.close(() => {
+    logger.info('HTTP server closed successfully');
+    process.exit(0);
+  });
+
+  setTimeout(() => {
+    logger.warn('Forcing shutdown after timeout');
+    process.exit(1);
+  }, 10000).unref();
+};
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

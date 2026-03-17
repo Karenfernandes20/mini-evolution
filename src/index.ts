@@ -76,9 +76,15 @@ app.use('/webhook', authMiddleware, webhookRoutes);
 app.use('/', authMiddleware, compatibilityRoutes);
 
 // Last fallback for SPA (Frontend)
-app.get('/:path*', (req, res, next) => {
+app.get('/*path', (req, res, next) => {
     // If it was an API request that reached here, next() to error handler (404)
-    if (req.path.startsWith('/api') || req.path.startsWith('/management') || req.path.startsWith('/instance')) {
+    if (
+      req.path.startsWith('/api') ||
+      req.path.startsWith('/management') ||
+      req.path.startsWith('/instance') ||
+      req.path.startsWith('/message') ||
+      req.path.startsWith('/webhook')
+    ) {
         return next();
     }
     
@@ -101,4 +107,3 @@ const PORT = env.PORT || 3001;
 app.listen(PORT, () => {
   logger.info(`🚀 Mini-Evolution Pro running on port ${PORT}`);
 });
-

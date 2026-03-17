@@ -60,15 +60,15 @@ app.use('/instance', authMiddleware, instanceRoutes);
 app.use('/message', authMiddleware, messageRoutes);
 app.use('/webhook', authMiddleware, webhookRoutes);
 // 5. Compatibility Router (AUTH REQUIRED within compatibilityRoutes or via prefix)
-// Need prefix to avoid catching everything with authMiddleware
 app.use('/', authMiddleware, compatibilityRoutes);
 // Last fallback for SPA (Frontend)
-app.use((req, res, next) => {
-    // Only handle GET requests for potential SPA routes
-    if (req.method !== 'GET')
-        return next();
+app.get('/*path', (req, res, next) => {
     // If it was an API request that reached here, next() to error handler (404)
-    if (req.path.startsWith('/api') || req.path.startsWith('/management') || req.path.startsWith('/instance')) {
+    if (req.path.startsWith('/api') ||
+        req.path.startsWith('/management') ||
+        req.path.startsWith('/instance') ||
+        req.path.startsWith('/message') ||
+        req.path.startsWith('/webhook')) {
         return next();
     }
     // Serve index.html as the last resort

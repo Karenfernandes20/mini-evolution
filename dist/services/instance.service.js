@@ -149,8 +149,8 @@ class InstanceService {
             try {
                 logger.info(`Auto-starting instance: ${instance.key}`);
                 await this.startInstance(instance.key);
-                // Small delay to avoid overloading CPU/Memory during boot
-                await new Promise(r => setTimeout(r, 500));
+                // Larger delay (3s) to avoid overloading CPU/Memory during boot
+                await new Promise(r => setTimeout(r, 3000));
             }
             catch (e) {
                 logger.error(e, `Failed to auto-start instance ${instance.key}`);

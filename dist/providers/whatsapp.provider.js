@@ -20,11 +20,22 @@ export class WhatsAppProvider extends EventEmitter {
             fs.mkdirSync(this.sessionDir, { recursive: true });
         }
     }
+    static latestVersion = null;
     async init() {
         const { state, saveCreds } = await useMultiFileAuthState(this.sessionDir);
         this.state = state;
         this.saveCreds = saveCreds;
-        const { version } = await fetchLatestBaileysVersion();
+        if (!WhatsAppProvider.latestVersion) {
+            try {
+                const { version } = await fetchLatestBaileysVersion();
+                WhatsAppProvider.latestVersion = version;
+            }
+            catch (e) {
+                logger.warn('Failed to fetch latest Baileys version, using default.');
+                WhatsAppProvider.latestVersion = [2, 3000, 1015901307]; // Fallback
+            }
+        }
+        const version = WhatsAppProvider.latestVersion;
         this.socket = makeWASocket({
             version,
             auth: state,

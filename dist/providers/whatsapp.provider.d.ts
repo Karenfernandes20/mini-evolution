@@ -6,6 +6,7 @@ export declare class WhatsAppProvider extends EventEmitter {
     private saveCreds;
     private sessionDir;
     constructor(instanceKey: string);
+    private static latestVersion;
     init(): Promise<void>;
     private setupListeners;
     sendMessage(to: string, content: any): Promise<import("@whiskeysockets/baileys").WAMessage | undefined>;

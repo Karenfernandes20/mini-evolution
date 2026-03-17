@@ -40,6 +40,11 @@ app.get('/api/admin/logs', authMiddleware, (req, res) => {
 // Serve frontend static files
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
+// Explicitly serve index.html for the root to avoid falling through to auth
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+});
+
 // Management endpoints (Admin with token or API Key)
 app.get('/management/instances', authMiddleware, async (req, res) => {
     const instances = await instanceService.listInstances();

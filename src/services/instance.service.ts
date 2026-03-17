@@ -121,6 +121,8 @@ class InstanceService {
     if (data) {
       data.status = status;
       if (extra.phone) data.phone = extra.phone;
+      if (extra.qr) data.qr = extra.qr;
+      if (status !== 'qrcode') delete data.qr; // Clear QR when not in qrcode mode
       data.updatedAt = new Date();
       this.saveToCache();
       

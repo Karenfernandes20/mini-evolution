@@ -3,6 +3,12 @@ import { env } from '../config/env.js';
 import { instanceService } from '../services/instance.service.js';
 
 export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+  // Allow Admin Dashboard access
+  const authHeader = req.headers['authorization'];
+  if (authHeader === `Bearer ${env.ADMIN_TOKEN}`) {
+      return next();
+  }
+
   const apiKey = req.headers['apikey'] || req.query.apikey || (req.body && (req.body.apikey || req.body.token));
 
   if (!apiKey) {

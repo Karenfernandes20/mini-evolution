@@ -19,10 +19,13 @@ const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
 
-// Health Check
+// 1. Static Files (NO AUTH) - Move to the top to ensure they are handled first
+const publicPath = path.resolve('public');
+app.use(express.static(publicPath));
+
+// 2. Health and Login (NO AUTH)
 app.get('/health', (req, res) => res.json({ status: 'OK', timestamp: new Date() }));
 
-// Admin Dashboard Routes (Compatiblity with old frontend)
 app.post('/api/admin/login', (req, res) => {
     const { email, password } = req.body;
     if (email === env.ADMIN_EMAIL && password === env.ADMIN_PASS) {
@@ -32,20 +35,11 @@ app.post('/api/admin/login', (req, res) => {
     }
 });
 
+// 3. Admin Dashboard and Management (AUTH REQUIRED)
 app.get('/api/admin/logs', authMiddleware, (req, res) => {
-    // Basic placeholder for logs. Real implementation would use pino or a custom buffer.
     res.json([{ ts: new Date().toISOString(), level: 'INFO', msg: 'Logs requested from dashboard' }]);
 });
 
-// Serve frontend static files
-app.use(express.static(path.join(__dirname, '..', 'public')));
-
-// Explicitly serve index.html for the root to avoid falling through to auth
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
-});
-
-// Management endpoints (Admin with token or API Key)
 app.get('/management/instances', authMiddleware, async (req, res) => {
     const instances = await instanceService.listInstances();
     res.json(instances);
@@ -66,18 +60,28 @@ app.delete('/management/instances/:key', authMiddleware, async (req, res) => {
 
 app.post('/management/instances/:key/disconnect', authMiddleware, async (req, res) => {
     const { key } = req.params as { key: string };
-    await instanceService.deleteInstance(key); // Logout and clear
-    await instanceService.startInstance(key); // Restart fresh
+    await instanceService.deleteInstance(key); 
+    await instanceService.startInstance(key);
     res.json({ success: true, message: 'Instância desconectada.' });
 });
 
-// Structured Protected API Routes (for Integrai Integrations)
+// 4. API Routes (AUTH REQUIRED)
 app.use('/instance', authMiddleware, instanceRoutes);
 app.use('/message', authMiddleware, messageRoutes);
 app.use('/webhook', authMiddleware, webhookRoutes);
 
-// Compatibility Routes (Support for old system endpoints)
+// 5. Compatibility Router (AUTH REQUIRED within compatibilityRoutes or via prefix)
+// Need prefix to avoid catching everything with authMiddleware
 app.use('/', authMiddleware, compatibilityRoutes);
+
+// Last fallback for SPA (Frontend)
+app.get('*', (req, res, next) => {
+    // If it was an API request that reached here, next() to error handler or 404
+    if (req.path.startsWith('/api') || req.path.startsWith('/management') || req.path.startsWith('/instance')) {
+        return next();
+    }
+    res.sendFile(path.join(publicPath, 'index.html'));
+});
 
 // Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {

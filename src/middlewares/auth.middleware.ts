@@ -3,6 +3,11 @@ import { env } from '../config/env.js';
 import { instanceService } from '../services/instance.service.js';
 
 export const authMiddleware = async (req: Request, res: Response, next: NextFunction) => {
+  // Skip auth for frontend and health
+  if (req.path === '/' || req.path === '/health') {
+      return next();
+  }
+
   // Allow Admin Dashboard access
   const authHeader = req.headers['authorization'];
   if (authHeader === `Bearer ${env.ADMIN_TOKEN}`) {

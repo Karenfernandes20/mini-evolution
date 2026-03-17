@@ -36,8 +36,10 @@ app.post('/api/admin/login', (req, res) => {
 });
 
 // 3. Admin Dashboard and Management (AUTH REQUIRED)
+import { logLines } from './utils/logger.js';
+
 app.get('/api/admin/logs', authMiddleware, (req, res) => {
-    res.json([{ ts: new Date().toISOString(), level: 'INFO', msg: 'Logs requested from dashboard' }]);
+    res.json(logLines);
 });
 
 app.get('/management/instances', authMiddleware, async (req, res) => {
@@ -97,10 +99,5 @@ const PORT = env.PORT || 3001;
 
 app.listen(PORT, () => {
   logger.info(`🚀 Mini-Evolution Pro running on port ${PORT}`);
-
-  // Start all instances on boot in background to avoid blocking the health check
-  instanceService.initAllInstances().catch((err: any) => {
-    logger.error(err, 'Failed to auto-start instances during boot');
-  });
 });
 

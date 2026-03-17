@@ -8,6 +8,9 @@ const envSchema = z.object({
     GLOBAL_API_KEY: z.string().default('minievo-secret-key'),
     WEBHOOK_URL_BASE: z.string().optional(),
     INSTANCE_TOKEN_PREFIX: z.string().default('me_'),
+    ADMIN_EMAIL: z.string().default('integraiempresa01@gmail.com'),
+    ADMIN_PASS: z.string().default('Integr1234'),
+    ADMIN_TOKEN: z.string().default('minievo-session-token-998877'),
 });
 const _env = envSchema.safeParse(process.env);
 if (!_env.success) {

@@ -5,6 +5,9 @@ export declare const env: {
     REDIS_URL: string;
     GLOBAL_API_KEY: string;
     INSTANCE_TOKEN_PREFIX: string;
+    ADMIN_EMAIL: string;
+    ADMIN_PASS: string;
+    ADMIN_TOKEN: string;
     DATABASE_URL?: string | undefined;
     WEBHOOK_URL_BASE?: string | undefined;
 };

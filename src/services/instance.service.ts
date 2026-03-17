@@ -79,10 +79,7 @@ class InstanceService {
 
     this.instancesData.set(normalizedKey, instance);
     this.saveToCache();
-    
-    // Auto-start
-    await this.startInstance(normalizedKey);
-    
+
     return instance;
   }
 

@@ -14,6 +14,7 @@ declare class InstanceService {
     getProvider(key: string): Promise<WhatsAppProvider | undefined>;
     listInstances(): Promise<InstanceData[]>;
     deleteInstance(key: string): Promise<void>;
+    initAllInstances(): Promise<void>;
 }
 export declare const instanceService: InstanceService;
 export {};

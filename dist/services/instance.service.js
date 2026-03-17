@@ -12,30 +12,37 @@ class InstanceService {
     instancesFile;
     constructor() {
         this.instancesFile = path.resolve(__dirname, '..', '..', 'sessions', 'instances.json');
-        // Ensure sessions directory exists
-        const sessionsDir = path.dirname(this.instancesFile);
-        if (!fs.existsSync(sessionsDir)) {
-            fs.mkdirSync(sessionsDir, { recursive: true });
+        try {
+            // Ensure sessions directory exists
+            const sessionsDir = path.dirname(this.instancesFile);
+            if (!fs.existsSync(sessionsDir)) {
+                fs.mkdirSync(sessionsDir, { recursive: true });
+            }
+            this.loadFromCache();
         }
-        this.loadFromCache();
+        catch (e) {
+            logger.error(e, 'Critical error initializing InstanceService folders');
+        }
     }
     loadFromCache() {
         if (fs.existsSync(this.instancesFile)) {
             try {
                 const data = JSON.parse(fs.readFileSync(this.instancesFile, 'utf-8'));
-                data.forEach((inst) => {
-                    const normalized = {
-                        key: inst.key.toLowerCase(),
-                        name: inst.name || inst.key,
-                        token: inst.token,
-                        status: inst.status,
-                        phone: inst.phone,
-                        webhookUrl: inst.webhookUrl,
-                        createdAt: inst.createdAt ? new Date(inst.createdAt) : (inst.created_at ? new Date(inst.created_at) : new Date()),
-                        updatedAt: inst.updatedAt ? new Date(inst.updatedAt) : (inst.updated_at ? new Date(inst.updated_at) : new Date()),
-                    };
-                    this.instancesData.set(normalized.key, normalized);
-                });
+                if (Array.isArray(data)) {
+                    data.forEach((inst) => {
+                        const normalized = {
+                            key: inst.key.toLowerCase(),
+                            name: inst.name || inst.key,
+                            token: inst.token,
+                            status: inst.status,
+                            phone: inst.phone,
+                            webhookUrl: inst.webhookUrl,
+                            createdAt: inst.createdAt ? new Date(inst.createdAt) : (inst.created_at ? new Date(inst.created_at) : new Date()),
+                            updatedAt: inst.updatedAt ? new Date(inst.updatedAt) : (inst.updated_at ? new Date(inst.updated_at) : new Date()),
+                        };
+                        this.instancesData.set(normalized.key, normalized);
+                    });
+                }
             }
             catch (e) {
                 logger.error(e, 'Failed to load instances from cache');
@@ -133,6 +140,21 @@ class InstanceService {
         const sessionDir = path.resolve(__dirname, '..', '..', 'sessions', normalizedKey);
         if (fs.existsSync(sessionDir)) {
             fs.rmSync(sessionDir, { recursive: true, force: true });
+        }
+    }
+    async initAllInstances() {
+        const instances = Array.from(this.instancesData.values());
+        logger.info(`Starting ${instances.length} instances from cache...`);
+        for (const instance of instances) {
+            try {
+                logger.info(`Auto-starting instance: ${instance.key}`);
+                await this.startInstance(instance.key);
+                // Small delay to avoid overloading CPU/Memory during boot
+                await new Promise(r => setTimeout(r, 500));
+            }
+            catch (e) {
+                logger.error(e, `Failed to auto-start instance ${instance.key}`);
+            }
         }
     }
 }

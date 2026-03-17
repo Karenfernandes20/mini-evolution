@@ -7,6 +7,7 @@ import messageRoutes from './routes/message.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import compatibilityRoutes from './routes/compatibility.routes.js';
 import { authMiddleware } from './middlewares/auth.middleware.js';
+import { instanceService } from './services/instance.service.js';
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -30,5 +31,9 @@ app.use((err, req, res, next) => {
 const PORT = env.PORT || 3001;
 app.listen(PORT, () => {
     logger.info(`🚀 Mini-Evolution Pro running on port ${PORT}`);
+    // Start all instances on boot in background to avoid blocking the health check
+    instanceService.initAllInstances().catch(err => {
+        logger.error(err, 'Failed to auto-start instances during boot');
+    });
 });
 //# sourceMappingURL=index.js.map

@@ -37,8 +37,12 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 const PORT = env.PORT || 3001;
 
-app.listen(PORT, async () => {
+app.listen(PORT, () => {
   logger.info(`🚀 Mini-Evolution Pro running on port ${PORT}`);
-  // Start all instances on boot
-  await instanceService.initAllInstances();
+  
+  // Start all instances on boot in background to avoid blocking the health check
+  instanceService.initAllInstances().catch(err => {
+    logger.error(err, 'Failed to auto-start instances during boot');
+  });
 });
+

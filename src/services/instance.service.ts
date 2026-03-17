@@ -17,31 +17,37 @@ class InstanceService {
 
   constructor() {
     this.instancesFile = path.resolve(__dirname, '..', '..', 'sessions', 'instances.json');
-    // Ensure sessions directory exists
-    const sessionsDir = path.dirname(this.instancesFile);
-    if (!fs.existsSync(sessionsDir)) {
-      fs.mkdirSync(sessionsDir, { recursive: true });
+    try {
+      // Ensure sessions directory exists
+      const sessionsDir = path.dirname(this.instancesFile);
+      if (!fs.existsSync(sessionsDir)) {
+        fs.mkdirSync(sessionsDir, { recursive: true });
+      }
+      this.loadFromCache();
+    } catch (e) {
+      logger.error(e, 'Critical error initializing InstanceService folders');
     }
-    this.loadFromCache();
   }
 
   private loadFromCache() {
     if (fs.existsSync(this.instancesFile)) {
       try {
         const data = JSON.parse(fs.readFileSync(this.instancesFile, 'utf-8'));
-        data.forEach((inst: any) => {
-          const normalized: InstanceData = {
-              key: inst.key.toLowerCase(),
-              name: inst.name || inst.key,
-              token: inst.token,
-              status: inst.status,
-              phone: inst.phone,
-              webhookUrl: inst.webhookUrl,
-              createdAt: inst.createdAt ? new Date(inst.createdAt) : (inst.created_at ? new Date(inst.created_at) : new Date()),
-              updatedAt: inst.updatedAt ? new Date(inst.updatedAt) : (inst.updated_at ? new Date(inst.updated_at) : new Date()),
-          };
-          this.instancesData.set(normalized.key, normalized);
-        });
+        if (Array.isArray(data)) {
+          data.forEach((inst: any) => {
+            const normalized: InstanceData = {
+                key: inst.key.toLowerCase(),
+                name: inst.name || inst.key,
+                token: inst.token,
+                status: inst.status,
+                phone: inst.phone,
+                webhookUrl: inst.webhookUrl,
+                createdAt: inst.createdAt ? new Date(inst.createdAt) : (inst.created_at ? new Date(inst.created_at) : new Date()),
+                updatedAt: inst.updatedAt ? new Date(inst.updatedAt) : (inst.updated_at ? new Date(inst.updated_at) : new Date()),
+            };
+            this.instancesData.set(normalized.key, normalized);
+          });
+        }
       } catch (e) {
         logger.error(e, 'Failed to load instances from cache');
       }

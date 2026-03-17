@@ -1,0 +1,34 @@
+﻿node_modules\@cspotcode\source-map-support\browser-source-map-support.js:g||95!==d.charCodeAt(g-1)||95!==d.charCodeAt(g-2)||111!==d.charCodeAt(g-3)||116!==d.charCodeAt(g-4)||111!==d.charCodeAt(g-5)||114!==d.charCodeAt(g-6)||112!==d.charCodeAt(g-7)||95!==d.charCodeAt(g-8)||95!==d.charCodeAt(g-9))return!1;for(g-=10;0<=g;g--)if(36!==d.charCodeAt(g))return!1;return!0}function r(d,g){return d===g?0:null===d?1:null===g?-1:d>g?1:-1}A.getArg=function(d,g,n){if(g in d)return d[g];if(3===arguments.length)return n;throw Error('"'+g+'" is a required argument.');};var k=/^(?:([\w+\-.]+):)?\/\/(?:(\w+:\w+)@)?([\w.-]*)(?::(\d+))?(.*)$/,
+node_modules\@cspotcode\source-map-support\browser-source-map-support.js:(x.name||"Error")+": "+(x.message||""),E={nextPosition:null,curPosition:null},H=[],M=B.length-1;0<=M;M--)H.push("\n    at "+r(B[M],E)),E.nextPosition=E.curPosition;E.curPosition=E.nextPosition=null;return F+H.reverse().join("")}function u(x){var B=/\n    at [^(]+ \((.*):(\d+):(\d+)\)/.exec(x.stack);if(B){x=B[1];var F=+B[2];B=+B[3];var E=b[x];if(!E&&v&&v.existsSync(x))try{E=v.readFileSync(x,"utf8")}catch(H){E=""}if(E&&(E=E.split(/(?:\r\n|\r|\n)/)[F-1]))return x+":"+F+"\n"+E+"\n"+Array(B).join(" ")+
+node_modules\@cspotcode\source-map-support\source-map-support.js:  var match = /\n    at [^(]+ \((.*):(\d+):(\d+)\)/.exec(error.stack);
+node_modules\@types\express-serve-static-core\index.d.ts: *     app.get(/user\/(.*)/, (req, res) => res.send(req.params[0])); // implicitly `ParamsFlatDictionary`, parameter is string
+node_modules\@whiskeysockets\baileys\node_modules\pino\lib\redaction.js:      ? first[1].replace(/^(?:"|'|`)(.*)(?:"|'|`)$/, '$1')
+node_modules\arg\index.js:				const [originalArgName, argStr] = arg[1] === '-' ? arg.split(/=(.*)/, 2) : [arg, undefined];
+node_modules\bullmq\dist\cjs\scripts\addJobScheduler-11.js:  return string.match(jobKey, ".*:(.*)")
+node_modules\bullmq\dist\cjs\scripts\addRepeatableJob-2.js:  return string.match(jobKey, ".*:(.*)")
+node_modules\bullmq\dist\cjs\scripts\cleanJobsInSet-3.js:  return string.match(jobKey, ".*:(.*)")
+node_modules\bullmq\dist\cjs\scripts\drain-5.js:  return string.match(jobKey, ".*:(.*)")
+node_modules\bullmq\dist\cjs\scripts\moveToFinished-14.js:  return string.match(jobKey, ".*:(.*)")
+node_modules\bullmq\dist\cjs\scripts\obliterate-2.js:  return string.match(jobKey, ".*:(.*)")
+node_modules\bullmq\dist\cjs\scripts\removeChildDependency-1.js:  return string.match(jobKey, ".*:(.*)")
+node_modules\bullmq\dist\cjs\scripts\removeJob-2.js:  return string.match(jobKey, ".*:(.*)")
+node_modules\bullmq\dist\cjs\scripts\removeUnprocessedChildren-2.js:  return string.match(jobKey, ".*:(.*)")
+node_modules\bullmq\dist\esm\scripts\addJobScheduler-11.js:  return string.match(jobKey, ".*:(.*)")
+node_modules\bullmq\dist\esm\scripts\addRepeatableJob-2.js:  return string.match(jobKey, ".*:(.*)")
+node_modules\bullmq\dist\esm\scripts\cleanJobsInSet-3.js:  return string.match(jobKey, ".*:(.*)")
+node_modules\bullmq\dist\esm\scripts\drain-5.js:  return string.match(jobKey, ".*:(.*)")
+node_modules\bullmq\dist\esm\scripts\moveToFinished-14.js:  return string.match(jobKey, ".*:(.*)")
+node_modules\bullmq\dist\esm\scripts\obliterate-2.js:  return string.match(jobKey, ".*:(.*)")
+node_modules\bullmq\dist\esm\scripts\removeChildDependency-1.js:  return string.match(jobKey, ".*:(.*)")
+node_modules\bullmq\dist\esm\scripts\removeJob-2.js:  return string.match(jobKey, ".*:(.*)")
+node_modules\bullmq\dist\esm\scripts\removeUnprocessedChildren-2.js:  return string.match(jobKey, ".*:(.*)")
+node_modules\cron-parser\lib\parser.js:      } else if ((matches = entry.match(/^(.*)=(.*)$/))) { // Variable
+node_modules\negotiator\lib\charset.js:var simpleCharsetRegExp = /^\s*([^\s;]+)\s*(?:;(.*))?$/;
+node_modules\negotiator\lib\encoding.js:var simpleEncodingRegExp = /^\s*([^\s;]+)\s*(?:;(.*))?$/;
+node_modules\negotiator\lib\language.js:var simpleLanguageRegExp = /^\s*([^\s\-;]+)(?:-([^\s;]+))?\s*(?:;(.*))?$/;
+node_modules\negotiator\lib\mediaType.js:var simpleMediaTypeRegExp = /^\s*([^\s\/;]+)\/([^;\s]+)\s*(?:;(.*))?$/;
+node_modules\pino\lib\redaction.js:      ? first[1].replace(/^(?:"|'|`)(.*)(?:"|'|`)$/, '$1')
+node_modules\typescript\lib\typescript.js:  const [, constraint] = flattenDiagnosticMessageText(messageText, "\n", 0).match(/`extends (.*)`/) || [];
+node_modules\typescript\lib\typescript.js:  const [, suggestion] = flattenDiagnosticMessageText(messageText, "\n", 0).match(/'(.*)'/) || [];
+node_modules\typescript\lib\typescript.js:var regionDelimiterRegExp = /^#(end)?region(.*)\r?$/;
+node_modules\typescript\lib\typesMap.json:            "match": "^(.*)\\/ace.js",

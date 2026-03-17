@@ -73,15 +73,16 @@ app.use('/message', authMiddleware, messageRoutes);
 app.use('/webhook', authMiddleware, webhookRoutes);
 
 // 5. Compatibility Router (AUTH REQUIRED within compatibilityRoutes or via prefix)
-// Need prefix to avoid catching everything with authMiddleware
 app.use('/', authMiddleware, compatibilityRoutes);
 
 // Last fallback for SPA (Frontend)
-app.get('/:path(.*)', (req, res, next) => {
-    // If it was an API request that reached here, next() to error handler or 404
+app.get('/:path*', (req, res, next) => {
+    // If it was an API request that reached here, next() to error handler (404)
     if (req.path.startsWith('/api') || req.path.startsWith('/management') || req.path.startsWith('/instance')) {
         return next();
     }
+    
+    // Serve index.html as the last resort
     res.sendFile(path.join(publicPath, 'index.html'));
 });
 

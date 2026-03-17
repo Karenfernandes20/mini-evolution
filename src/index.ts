@@ -7,6 +7,7 @@ import messageRoutes from './routes/message.routes.js';
 import webhookRoutes from './routes/webhook.routes.js';
 import compatibilityRoutes from './routes/compatibility.routes.js';
 import { authMiddleware } from './middlewares/auth.middleware.js';
+import { instanceService } from './services/instance.service.js';
 
 const app = express();
 
@@ -36,6 +37,8 @@ app.use((err: any, req: express.Request, res: express.Response, next: express.Ne
 
 const PORT = env.PORT || 3001;
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   logger.info(`🚀 Mini-Evolution Pro running on port ${PORT}`);
+  // Start all instances on boot
+  await instanceService.initAllInstances();
 });

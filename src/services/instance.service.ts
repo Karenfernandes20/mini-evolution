@@ -160,6 +160,22 @@ class InstanceService {
         fs.rmSync(sessionDir, { recursive: true, force: true });
     }
   }
+
+  async initAllInstances() {
+    const instances = Array.from(this.instancesData.values());
+    logger.info(`Starting ${instances.length} instances from cache...`);
+    
+    for (const instance of instances) {
+        try {
+            logger.info(`Auto-starting instance: ${instance.key}`);
+            await this.startInstance(instance.key);
+            // Small delay to avoid overloading CPU/Memory during boot
+            await new Promise(r => setTimeout(r, 500));
+        } catch (e) {
+            logger.error(e, `Failed to auto-start instance ${instance.key}`);
+        }
+    }
+  }
 }
 
 export const instanceService = new InstanceService();

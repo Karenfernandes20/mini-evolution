@@ -6,6 +6,7 @@ export interface InstanceData {
     status: InstanceStatus;
     phone?: string;
     qr?: string;
+    qrBase64?: string;
     webhookUrl?: string;
     createdAt: Date;
     updatedAt: Date;

@@ -30,8 +30,9 @@ app.post('/api/admin/login', (req, res) => {
     }
 });
 // 3. Admin Dashboard and Management (AUTH REQUIRED)
+import { logLines } from './utils/logger.js';
 app.get('/api/admin/logs', authMiddleware, (req, res) => {
-    res.json([{ ts: new Date().toISOString(), level: 'INFO', msg: 'Logs requested from dashboard' }]);
+    res.json(logLines);
 });
 app.get('/management/instances', authMiddleware, async (req, res) => {
     const instances = await instanceService.listInstances();
@@ -62,7 +63,7 @@ app.use('/webhook', authMiddleware, webhookRoutes);
 // Need prefix to avoid catching everything with authMiddleware
 app.use('/', authMiddleware, compatibilityRoutes);
 // Last fallback for SPA (Frontend)
-app.get('*', (req, res, next) => {
+app.get('(.*)', (req, res, next) => {
     // If it was an API request that reached here, next() to error handler or 404
     if (req.path.startsWith('/api') || req.path.startsWith('/management') || req.path.startsWith('/instance')) {
         return next();

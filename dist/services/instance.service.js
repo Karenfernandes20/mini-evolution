@@ -3,7 +3,8 @@ import logger from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { webhookService } from './webhook.service.js';
+import QRCode from 'qrcode';
+// import { webhookService } from './webhook.service.js'; // Circular dependency
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 class InstanceService {
@@ -93,6 +94,7 @@ class InstanceService {
         });
         // Handle messages relaying to webhook
         provider.on('messages.upsert', async (m) => {
+            const { webhookService } = await import('./webhook.service.js');
             await webhookService.dispatch(normalizedKey, 'messages.upsert', m);
         });
         await provider.init();
@@ -105,20 +107,26 @@ class InstanceService {
             data.status = status;
             if (extra.phone)
                 data.phone = extra.phone;
-            if (extra.qr)
+            if (extra.qr) {
                 data.qr = extra.qr;
-            if (status !== 'qrcode')
-                delete data.qr; // Clear QR when not in qrcode mode
+                QRCode.toDataURL(extra.qr).then((url) => {
+                    data.qrBase64 = url;
+                }).catch((err) => logger.error(err, 'Failed to generate QR Base64'));
+            }
+            if (status !== 'qrcode') {
+                delete data.qr;
+                delete data.qrBase64;
+            }
             data.updatedAt = new Date();
-            this.saveToCache();
-            // Dispatch webhook
-            const event = status === 'connected' ? 'connection.open' :
+            const webhookEvent = status === 'connected' ? 'connection.open' :
                 status === 'qrcode' ? 'connection.qr' :
                     status === 'disconnected' ? 'connection.close' : 'connection.update';
-            webhookService.dispatch(normalizedKey, event, {
-                status,
-                ...extra
-            }).catch(err => logger.error(err, `Error dispatching webhook for ${normalizedKey}`));
+            import('./webhook.service.js').then(({ webhookService }) => {
+                webhookService.dispatch(normalizedKey, webhookEvent, {
+                    status,
+                    ...extra
+                }).catch(err => logger.error(err, `Error dispatching webhook for ${normalizedKey}`));
+            });
             logger.info(`Instance [${normalizedKey}] status changed to ${status}`);
         }
     }

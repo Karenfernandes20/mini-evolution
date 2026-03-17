@@ -77,7 +77,7 @@ app.use('/webhook', authMiddleware, webhookRoutes);
 app.use('/', authMiddleware, compatibilityRoutes);
 
 // Last fallback for SPA (Frontend)
-app.get('*', (req, res, next) => {
+app.get('(.*)', (req, res, next) => {
     // If it was an API request that reached here, next() to error handler or 404
     if (req.path.startsWith('/api') || req.path.startsWith('/management') || req.path.startsWith('/instance')) {
         return next();

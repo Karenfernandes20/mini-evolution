@@ -7,8 +7,7 @@
     "start": "sh -c 'if [ ! -f dist/index.js ]; then echo \"❌ dist/index.js not found. Run npm run build\"; exit 1; fi; exec node dist/index.js'",
     "dev": "nodemon --exec ts-node src/index.ts",
     "build": "tsc",
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "prestart": "npm run build"
+    "prestart": "npm run build",
     "test": "node -e \"console.log('No automated tests configured yet.')\""
   },
   "keywords": [],

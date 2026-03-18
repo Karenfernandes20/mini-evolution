@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { env } from '../config/env.js';
 import logger from '../utils/logger.js';
 import { buildApiResponse } from '../utils/api-response.js';
 
@@ -17,6 +18,7 @@ export class WebhookController {
     }
 
     process.env.WEBHOOK_URL_BASE = url;
+    env.WEBHOOK_URL_BASE = url;
     logger.info({ url }, 'Global webhook updated');
 
     return res.json({

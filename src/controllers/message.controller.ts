@@ -1,42 +1,45 @@
 import fs from 'fs';
 import { Request, Response } from 'express';
-import { z } from 'zod';
 import { instanceService } from '../services/instance.service.js';
 import { mediaService } from '../services/media.service.js';
 import { buildApiResponse } from '../utils/api-response.js';
 
-const sendTextSchema = z.object({
-  number: z.string(),
-  text: z.string(),
-});
+const getStringValue = (...candidates: unknown[]) => {
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string') {
+      const normalized = candidate.trim();
+      if (normalized) {
+        return normalized;
+      }
+    }
+  }
 
-const sendMediaSchema = z.object({
-  number: z.string(),
-  media: z.string(),
-  caption: z.string().optional(),
-  fileName: z.string().optional(),
-});
+  return '';
+};
 
-const sendReactionSchema = z.object({
-  number: z.string(),
-  emoji: z.string(),
-  messageId: z.string(),
-});
+const normalizeNumberToJid = (number: string) => {
+  if (number.includes('@')) {
+    return number;
+  }
+
+  const digitsOnly = number.replace(/\D/g, '');
+  return `${digitsOnly}@s.whatsapp.net`;
+};
 
 export class MessageController {
   async sendText(req: Request, res: Response) {
     // Dynamic extraction for compatibility
     const instance = (req.params.instance || req.body.instance || req.body.instanceKey) as string;
-    const body = req.body;
-    const number = body.number || body.remoteJid;
-    const text = body.text;
+    const body = req.body ?? {};
+    const number = getStringValue(body.number, body.remoteJid, body.phone, body.to);
+    const text = getStringValue(body.text, body.message, body.textMessage?.text);
 
     if (!instance || !number || !text) {
       return res.status(400).json(
         buildApiResponse({
           success: false,
           status: 'ERROR',
-          message: 'Missing required fields: instance, number/remoteJid, and text must be provided.',
+          message: 'Missing required fields: instance, number/remoteJid, and text/textMessage.text/message must be provided.',
         }),
       );
     }
@@ -53,7 +56,7 @@ export class MessageController {
       );
     }
 
-    const jid = String(number).includes('@') ? String(number) : `${number}@s.whatsapp.net`;
+    const jid = normalizeNumberToJid(String(number));
     const result = await provider.sendMessage(jid, { text });
 
     if (!result) {
@@ -76,8 +79,8 @@ export class MessageController {
 
   async sendMedia(req: Request, res: Response, type: 'image' | 'audio' | 'video' | 'document') {
     const instance = (req.params.instance || req.body.instance || req.body.instanceKey) as string;
-    const body = req.body;
-    const number = body.number || body.remoteJid;
+    const body = req.body ?? {};
+    const number = getStringValue(body.number, body.remoteJid, body.phone, body.to);
     const { media, caption, fileName } = body;
 
     if (!instance || !number || !media) {
@@ -102,7 +105,7 @@ export class MessageController {
       );
     }
 
-    const jid = String(number).includes('@') ? String(number) : `${number}@s.whatsapp.net`;
+    const jid = normalizeNumberToJid(String(number));
 
     let filePath: string;
     if (media.startsWith('http')) {
@@ -150,8 +153,8 @@ export class MessageController {
 
   async sendReaction(req: Request, res: Response) {
     const instance = (req.params.instance || req.body.instance || req.body.instanceKey) as string;
-    const body = req.body;
-    const number = body.number || body.remoteJid;
+    const body = req.body ?? {};
+    const number = getStringValue(body.number, body.remoteJid, body.phone, body.to);
     const { emoji, messageId } = body;
 
     if (!instance || !number || !emoji || !messageId) {
@@ -176,7 +179,7 @@ export class MessageController {
       );
     }
 
-    const jid = String(number).includes('@') ? String(number) : `${number}@s.whatsapp.net`;
+    const jid = normalizeNumberToJid(String(number));
     const result = await provider.sendMessage(jid, {
       react: {
         text: emoji,

@@ -20,19 +20,17 @@ export class CacheableStats {
     this.hits = 0;
     this.misses = 0;
     
-    // Catch-all for any incrementX methods to prevent "is not a function" errors
+    // Final catch-all for ANY method call that doesn't exist to prevent "is not a function" errors
     return new Proxy(this, {
       get(target, prop) {
         if (prop in target) return target[prop];
-        if (typeof prop === 'string' && prop.startsWith('increment')) {
-          return () => { 
-            if (target.enabled) {
-              const key = prop.replace('increment', '').toLowerCase();
-              target[key] = (target[key] || 0) + 1;
-            }
-          };
-        }
-        return target[prop];
+        // If it's a function call like setCount, incrementX, etc. return a dummy function
+        return (...args) => {
+          if (target.enabled && typeof prop === 'string') {
+            const key = prop.replace(/^(increment|set|get|has|del)/, '').toLowerCase() || 'count';
+            target[key] = (target[key] || 0) + 1;
+          }
+        };
       }
     });
   }

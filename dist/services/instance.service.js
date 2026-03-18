@@ -116,14 +116,22 @@ class InstanceService {
                 delete data.qrBase64;
             }
             data.updatedAt = new Date();
-            const webhookEvent = status === 'connected' ? 'connection.open' :
-                status === 'qrcode' ? 'connection.qr' :
-                    status === 'disconnected' ? 'connection.close' : 'connection.update';
             import('./webhook.service.js').then(({ webhookService }) => {
-                webhookService.dispatch(normalizedKey, webhookEvent, {
-                    status,
-                    ...extra
-                }).catch(err => logger.error(err, `Error dispatching webhook for ${normalizedKey}`));
+                if (status === 'qrcode' && extra.qr) {
+                    // Format expected by miniEvoController.ts: { event: 'qrcode', qr: '<raw_qr_string>' }
+                    webhookService.dispatch(normalizedKey, 'qrcode', {
+                        qr: extra.qr,
+                        instanceKey: normalizedKey,
+                    }).catch(err => logger.error(err, `Error dispatching QR webhook for ${normalizedKey}`));
+                }
+                else {
+                    // Format expected by miniEvoController.ts: { event: 'status', status: 'connected'|'disconnected' }
+                    const mappedStatus = status === 'connected' ? 'connected' : 'disconnected';
+                    webhookService.dispatch(normalizedKey, 'status', {
+                        status: mappedStatus,
+                        instanceKey: normalizedKey,
+                    }).catch(err => logger.error(err, `Error dispatching status webhook for ${normalizedKey}`));
+                }
             });
             logger.info(`Instance [${normalizedKey}] status changed to ${status}`);
         }

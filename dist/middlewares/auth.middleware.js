@@ -7,7 +7,11 @@ export const authMiddleware = async (req, res, next) => {
         return next();
     }
     // Get API Key from multiple common sources
-    let apiKey = (req.headers['apikey'] || req.query.apikey || (req.body && (req.body.apikey || req.body.token)));
+    let apiKey = (req.headers['apikey'] ||
+        req.query.apikey ||
+        req.query.token ||
+        req.query.key ||
+        (req.body && (req.body.apikey || req.body.token || req.body.key)));
     // If not found, try Authorization header (standard)
     if (!apiKey && req.headers['authorization']) {
         const authHeader = req.headers['authorization'];
@@ -27,7 +31,22 @@ export const authMiddleware = async (req, res, next) => {
         return next();
     }
     // Instance specific key check
-    const instanceKey = (req.params.instance || req.query.instanceKey || (req.body && (req.body.instanceKey || req.body.instance)));
+    let instanceKey = (req.params.instance ||
+        req.query.instanceKey ||
+        req.query.instance ||
+        req.query.instance_key ||
+        req.query.key ||
+        (req.body && (req.body.instanceKey || req.body.instance || req.body.instance_key || req.body.key)) ||
+        req.headers['instance'] ||
+        req.headers['instance_key']);
+    // Fallback: extract from path if it follows /instance/something/:instance
+    if (!instanceKey) {
+        const pathParts = req.originalUrl.split('?')[0].split('/');
+        // /instance/anything/instanceName or /message/anything/instanceName
+        if ((pathParts[1] === 'instance' || pathParts[1] === 'message' || pathParts[1] === 'webhook') && pathParts[3]) {
+            instanceKey = pathParts[3];
+        }
+    }
     if (instanceKey) {
         const normalizedKey = instanceKey.toString().toLowerCase();
         const instance = await instanceService.getInstance(normalizedKey);

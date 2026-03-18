@@ -24,8 +24,10 @@ router.get('/contact/fetchContacts/:instance', async (req, res) => {
 });
 // QR Compatibility
 router.get('/get-qr', (req, res) => {
-    req.params.instance = (req.query.instanceKey || req.query.instance);
+    req.params.instance = (req.query.instanceKey || req.query.instance || req.query.instance_key);
     return instanceController.connect(req, res);
 });
+router.get('/instance/qr/:instance', instanceController.connect);
+router.post('/instance/qr/:instance', instanceController.connect);
 export default router;
 //# sourceMappingURL=compatibility.routes.js.map

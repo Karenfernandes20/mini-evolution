@@ -111,14 +111,28 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
   const apiKey = getApiKey(req);
   const instance = getInstanceName(req);
 
+  // 1. Check Global API Key first (highest priority, always allowed)
   if (apiKey && apiKey === env.GLOBAL_API_KEY) {
     return next();
   }
 
-  if (!isGlobalOnlyRoute(req) && apiKey && instance) {
-    const instanceData = await instanceService.getInstance(instance);
-    if (instanceData?.token === apiKey) {
+  // 2. If it's a management route, ONLY Global API Key is allowed (already handled above)
+  if (isGlobalOnlyRoute(req)) {
+      logger.warn({ route: req.originalUrl, instance }, 'Management route access denied - Global API Key required');
+      return res.status(403).json(buildApiResponse({ success: false, status: 'ERROR', message: 'Global API Key required for management routes' }));
+  }
+
+  // 3. For instance-specific routes, check if the token matches the instance
+  if (apiKey && instance) {
+    const instanceData = await instanceService.getInstance(instance.toLowerCase());
+    if (instanceData && (instanceData.token === apiKey || instanceData.key === instance.toLowerCase() || instanceData.name?.toLowerCase() === instance.toLowerCase())) {
+      // In some compatibility cases, the instance name might be the token or vice-versa
       return next();
+    }
+    
+    // Fallback: If we find the instance in DB but the key is different, and we already checked Global key, then it's invalid
+    if (instanceData) {
+        logger.warn({ route: req.originalUrl, instance, providedKey: apiKey, expectedKey: instanceData.token }, 'Instance authentication failed');
     }
   }
 

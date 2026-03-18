@@ -281,7 +281,18 @@ class InstanceService {
   }
 
   async getProvider(key: string) {
-    return this.providers.get(key.toLowerCase()) || null;
+    const normalizedKey = key.toLowerCase();
+    let provider = this.providers.get(normalizedKey);
+
+    if (!provider) {
+      // If not found directly, try to resolve the real key (in case the input is a Display Name)
+      const instance = await this.getInstance(normalizedKey);
+      if (instance && instance.key !== normalizedKey) {
+        provider = this.providers.get(instance.key);
+      }
+    }
+
+    return provider || null;
   }
 
   async listInstances() {

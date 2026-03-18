@@ -7,7 +7,8 @@ import { instanceService } from './instance.service.js';
 class WebhookService {
   async dispatch(instanceKey: string, event: string, data: Record<string, unknown>) {
     const instance = await instanceService.getInstance(instanceKey);
-    const baseUrl = (instance?.webhookUrl || env.WEBHOOK_URL_BASE || '').replace(/\/$/, '');
+    const configuredBaseUrl = instance?.webhookUrl || process.env.WEBHOOK_URL_BASE || env.WEBHOOK_URL_BASE || '';
+    const baseUrl = configuredBaseUrl.replace(/\/$/, '');
 
     if (!baseUrl) {
       logger.info({ instance: instanceKey, event }, 'Webhook URL not configured, skipping dispatch');

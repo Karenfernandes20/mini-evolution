@@ -40,4 +40,7 @@ router.get('/get-qr', (req, res) => {
 router.get('/instance/qr/:instance', instanceController.connect);
 router.post('/instance/qr/:instance', instanceController.connect);
 
+router.post('/chat/downloadMedia/:instance', instanceController.downloadMedia);
+router.post('/chat/getBase64/:instance', instanceController.downloadMedia);
+
 export default router;

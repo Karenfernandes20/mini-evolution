@@ -199,6 +199,70 @@ export class InstanceController {
       }),
     );
   }
+
+  async downloadMedia(req: Request, res: Response) {
+    const instance = (req.params.instance || req.body.instanceKey || req.body.instanceName || req.body.instance || '').toString().toLowerCase();
+    const { mediaKey, directPath, mediaType, mimetype, fileSha256 } = req.body;
+
+    if (!instance || !mediaKey || !directPath || !mediaType) {
+      return res.status(400).json(
+        buildApiResponse({
+          success: false,
+          status: 'ERROR',
+          message: 'Missing required fields for media download: instance, mediaKey, directPath, mediaType.',
+        }),
+      );
+    }
+
+    const provider = await instanceService.getProvider(instance);
+    if (!provider) {
+      return res.status(404).json(
+        buildApiResponse({
+          success: false,
+          status: 'ERROR',
+          instance,
+          message: 'Instance not found or not started',
+        }),
+      );
+    }
+
+    try {
+      const { downloadMediaMessage } = await import('@whiskeysockets/baileys');
+      
+      // Determine the correct message top-level key
+      const messageKey = mediaType.endsWith('Message') ? mediaType : `${mediaType}Message`;
+
+      // Construct a pseudo-message object as expected by Baileys downloadMediaMessage
+      const message: any = {
+        message: {
+          [messageKey]: {
+            mediaKey,
+            directPath,
+            mimetype,
+            fileSha256,
+          },
+        },
+      };
+
+      const buffer = await downloadMediaMessage(message, 'buffer', {});
+      const base64 = buffer.toString('base64');
+
+      return res.json({
+        success: true,
+        base64: base64,
+      });
+    } catch (error: any) {
+      logger.error({ err: error, instance }, 'Error downloading media from Baileys');
+      return res.status(500).json(
+        buildApiResponse({
+          success: false,
+          status: 'ERROR',
+          instance,
+          message: `Failed to download media: ${error.message}`,
+        }),
+      );
+    }
+  }
 }
 
 export const instanceController = new InstanceController();

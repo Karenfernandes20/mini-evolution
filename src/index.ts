@@ -56,6 +56,7 @@ app.use((req, res, next) => {
 });
 
 app.use(express.static(publicPath));
+app.use('/media', express.static(path.resolve(__dirname, '..', '..', 'temp', 'media')));
 
 app.get('/health', (req, res) => {
   res.json({

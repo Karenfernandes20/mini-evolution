@@ -86,6 +86,10 @@ app.use((err, req, res, next) => {
 const PORT = Number(env.PORT || 3000);
 const server = app.listen(PORT, () => {
     logger.info(`🚀 Mini-Evolution Pro running on port ${PORT} (pid: ${process.pid})`);
+    // Auto-start instances from cache
+    instanceService.initAllInstances().catch(err => {
+        logger.error(err, 'Failed to initialize instances on boot');
+    });
 });
 const shutdown = (signal) => {
     logger.info(`[${signal}] graceful shutdown started`);

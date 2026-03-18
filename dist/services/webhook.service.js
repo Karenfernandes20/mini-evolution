@@ -7,7 +7,7 @@ class WebhookService {
     async dispatch(instanceKey, event, data) {
         const instance = await instanceService.getInstance(instanceKey);
         const configuredBaseUrl = instance?.webhookUrl || process.env.WEBHOOK_URL_BASE || env.WEBHOOK_URL_BASE || '';
-        const baseUrl = configuredBaseUrl.replace(/\/$/, '');
+        const baseUrl = `${configuredBaseUrl.replace(/\/$/, '')}/${instanceKey}`;
         if (!baseUrl) {
             logger.info({ instance: instanceKey, event }, 'Webhook URL not configured, skipping dispatch');
             return;
@@ -31,7 +31,7 @@ class WebhookService {
             try {
                 await axios.post(baseUrl, payload, {
                     headers: { 'Content-Type': 'application/json' },
-                    timeout: 10000,
+                    timeout: 2000, // Reduced timeout from 10000ms to 2000ms
                 });
                 logger.info({ instance: instanceKey, event, url: baseUrl }, 'Webhook sent successfully via direct POST fallback');
             }

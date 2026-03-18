@@ -134,6 +134,7 @@ class InstanceService {
     });
 
     provider.on('messages.upsert', async (message) => {
+      logger.info({ instance: normalizedKey, count: message.messages?.length }, '📩 Message received, dispatching webhook');
       const { webhookService } = await import('./webhook.service.js');
       await webhookService.dispatch(normalizedKey, 'messages.upsert', message);
     });

@@ -19,9 +19,23 @@ export class CacheableStats {
     this.count = 0;
     this.hits = 0;
     this.misses = 0;
+    
+    // Catch-all for any incrementX methods to prevent "is not a function" errors
+    return new Proxy(this, {
+      get(target, prop) {
+        if (prop in target) return target[prop];
+        if (typeof prop === 'string' && prop.startsWith('increment')) {
+          return () => { 
+            if (target.enabled) {
+              const key = prop.replace('increment', '').toLowerCase();
+              target[key] = (target[key] || 0) + 1;
+            }
+          };
+        }
+        return target[prop];
+      }
+    });
   }
-  incrementHits() { if (this.enabled) this.hits++; }
-  incrementMisses() { if (this.enabled) this.misses++; }
 }
 
 class BaseMemoryStore {

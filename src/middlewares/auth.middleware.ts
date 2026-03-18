@@ -53,10 +53,8 @@ const getInstanceName = (req: Request) => {
   const candidates = [
     req.params.instance,
     req.body?.instance,
-    req.body?.instanceName,
     req.body?.instanceKey,
     req.query?.instance,
-    req.query?.instanceName,
     req.query?.instanceKey,
     req.query?.instance_key,
     getPathInstanceName(req),

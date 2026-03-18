@@ -25,8 +25,21 @@ const sendReactionSchema = z.object({
 
 export class MessageController {
   async sendText(req: Request, res: Response) {
-    const instance = req.params.instance as string;
-    const { number, text } = sendTextSchema.parse(req.body);
+    // Dynamic extraction for compatibility
+    const instance = (req.params.instance || req.body.instance || req.body.instanceKey) as string;
+    const body = req.body;
+    const number = body.number || body.remoteJid;
+    const text = body.text;
+
+    if (!instance || !number || !text) {
+      return res.status(400).json(
+        buildApiResponse({
+          success: false,
+          status: 'ERROR',
+          message: 'Missing required fields: instance, number/remoteJid, and text must be provided.',
+        }),
+      );
+    }
 
     const provider = await instanceService.getProvider(instance);
     if (!provider) {
@@ -40,7 +53,7 @@ export class MessageController {
       );
     }
 
-    const jid = number.includes('@') ? number : `${number}@s.whatsapp.net`;
+    const jid = String(number).includes('@') ? String(number) : `${number}@s.whatsapp.net`;
     const result = await provider.sendMessage(jid, { text });
 
     if (!result) {
@@ -62,8 +75,20 @@ export class MessageController {
   }
 
   async sendMedia(req: Request, res: Response, type: 'image' | 'audio' | 'video' | 'document') {
-    const instance = req.params.instance as string;
-    const { number, media, caption, fileName } = sendMediaSchema.parse(req.body);
+    const instance = (req.params.instance || req.body.instance || req.body.instanceKey) as string;
+    const body = req.body;
+    const number = body.number || body.remoteJid;
+    const { media, caption, fileName } = body;
+
+    if (!instance || !number || !media) {
+      return res.status(400).json(
+        buildApiResponse({
+          success: false,
+          status: 'ERROR',
+          message: 'Missing required fields: instance, number/remoteJid, and media must be provided.',
+        }),
+      );
+    }
 
     const provider = await instanceService.getProvider(instance);
     if (!provider) {
@@ -77,7 +102,7 @@ export class MessageController {
       );
     }
 
-    const jid = number.includes('@') ? number : `${number}@s.whatsapp.net`;
+    const jid = String(number).includes('@') ? String(number) : `${number}@s.whatsapp.net`;
 
     let filePath: string;
     if (media.startsWith('http')) {
@@ -124,8 +149,20 @@ export class MessageController {
   async sendDocument(req: Request, res: Response) { return this.sendMedia(req, res, 'document'); }
 
   async sendReaction(req: Request, res: Response) {
-    const instance = req.params.instance as string;
-    const { number, emoji, messageId } = sendReactionSchema.parse(req.body);
+    const instance = (req.params.instance || req.body.instance || req.body.instanceKey) as string;
+    const body = req.body;
+    const number = body.number || body.remoteJid;
+    const { emoji, messageId } = body;
+
+    if (!instance || !number || !emoji || !messageId) {
+       return res.status(400).json(
+        buildApiResponse({
+          success: false,
+          status: 'ERROR',
+          message: 'Missing required fields for reaction.',
+        }),
+      );
+    }
 
     const provider = await instanceService.getProvider(instance);
     if (!provider) {
@@ -139,7 +176,7 @@ export class MessageController {
       );
     }
 
-    const jid = number.includes('@') ? number : `${number}@s.whatsapp.net`;
+    const jid = String(number).includes('@') ? String(number) : `${number}@s.whatsapp.net`;
     const result = await provider.sendMessage(jid, {
       react: {
         text: emoji,

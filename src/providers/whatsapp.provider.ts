@@ -50,9 +50,17 @@ export class WhatsAppProvider extends EventEmitter {
     const version = WhatsAppProvider.latestVersion;
 
 
+    const retryCache = new Map<string, number>();
     this.socket = makeWASocket({
       version,
       auth: state,
+      // Bypass potential bugs in the vendored cacheable package by using a minimal CacheStore
+      msgRetryCounterCache: {
+        get: (key: string) => retryCache.get(key),
+        set: (key: string, value: number) => { retryCache.set(key, value); },
+        del: (key: string) => { retryCache.delete(key); },
+        flushAll: () => { retryCache.clear(); },
+      } as any,
       printQRInTerminal: false,
       browser: Browsers.ubuntu('Chrome'),
       logger: logger as any,

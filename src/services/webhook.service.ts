@@ -8,12 +8,12 @@ class WebhookService {
   async dispatch(instanceKey: string, event: string, data: Record<string, unknown>) {
     const instance = await instanceService.getInstance(instanceKey);
     const configuredBaseUrl = instance?.webhookUrl || process.env.WEBHOOK_URL_BASE || env.WEBHOOK_URL_BASE || '';
-    const baseUrl = `${configuredBaseUrl.replace(/\/$/, '')}/${instanceKey}`;
-
-    if (!baseUrl) {
-      logger.info({ instance: instanceKey, event }, 'Webhook URL not configured, skipping dispatch');
+    if (!configuredBaseUrl || !configuredBaseUrl.startsWith('http')) {
+      logger.warn({ instance: instanceKey, event, configuredBaseUrl }, 'Webhook URL not properly configured or not absolute (must start with http), skipping dispatch');
       return;
     }
+
+    const baseUrl = `${configuredBaseUrl.replace(/\/$/, '')}/${instanceKey}`;
 
     const payload = {
       event,

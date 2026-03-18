@@ -1,32 +1,43 @@
-import { webhookQueue } from '../queues/webhook.queue.js';
-import { instanceService } from './instance.service.js';
+import axios from 'axios';
 import { env } from '../config/env.js';
 import logger from '../utils/logger.js';
+import { webhookQueue } from '../queues/webhook.queue.js';
+import { instanceService } from './instance.service.js';
 class WebhookService {
     async dispatch(instanceKey, event, data) {
         const instance = await instanceService.getInstance(instanceKey);
-        const url = instance?.webhookUrl || env.WEBHOOK_URL_BASE;
-        if (!url) {
-            logger.debug(`No webhook URL configured for instance ${instanceKey}, skipping dispatch.`);
+        const baseUrl = (instance?.webhookUrl || env.WEBHOOK_URL_BASE || '').replace(/\/$/, '');
+        if (!baseUrl) {
+            logger.info({ instance: instanceKey, event }, 'Webhook URL not configured, skipping dispatch');
             return;
         }
         const payload = {
             event,
             instance: instanceKey,
-            timestamp: Date.now(),
-            // Spread data fields at root level so miniEvoController can access body.qr, body.status, etc.
+            timestamp: new Date().toISOString(),
             ...data,
-            // Also keep nested data for compatibility with other consumers
             data,
         };
-        // Build final URL: base may be like https://integraihub.com/api/minievo/webhook
-        // The Integrai route expects /api/minievo/webhook/:instanceKey
-        const baseUrl = (url || '').replace(/\/$/, '');
-        const finalUrl = baseUrl.endsWith(instanceKey) ? baseUrl : `${baseUrl}/${instanceKey}`;
-        await webhookQueue.add(`webhook-${instanceKey}-${event}`, {
-            url: finalUrl,
-            payload
-        });
+        try {
+            await webhookQueue.add(`webhook-${instanceKey}-${event}-${Date.now()}`, {
+                url: baseUrl,
+                payload,
+            });
+            logger.info({ instance: instanceKey, event, url: baseUrl }, 'Webhook queued successfully');
+        }
+        catch (error) {
+            logger.error({ err: error, instance: instanceKey, event, url: baseUrl }, 'Failed to enqueue webhook, trying direct POST');
+            try {
+                await axios.post(baseUrl, payload, {
+                    headers: { 'Content-Type': 'application/json' },
+                    timeout: 10000,
+                });
+                logger.info({ instance: instanceKey, event, url: baseUrl }, 'Webhook sent successfully via direct POST fallback');
+            }
+            catch (fallbackError) {
+                logger.error({ err: fallbackError, instance: instanceKey, event, url: baseUrl }, 'Webhook delivery failed, but request flow will continue');
+            }
+        }
     }
 }
 export const webhookService = new WebhookService();

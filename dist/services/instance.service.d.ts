@@ -7,11 +7,13 @@ declare class InstanceService {
     constructor();
     private loadFromCache;
     private saveToCache;
-    createInstance(key: string, name?: string, token?: string, webhookUrl?: string): Promise<InstanceData | undefined>;
-    startInstance(key: string): Promise<WhatsAppProvider | undefined>;
+    ensureInstance(key: string, name?: string, token?: string, webhookUrl?: string): Promise<InstanceData>;
+    createInstance(key: string, name?: string, token?: string, webhookUrl?: string): Promise<InstanceData>;
+    startInstance(key: string): Promise<WhatsAppProvider>;
+    waitForQrCode(key: string, timeoutMs?: number): Promise<InstanceData | null>;
     private updateStatus;
-    getInstance(key: string): Promise<InstanceData | undefined>;
-    getProvider(key: string): Promise<WhatsAppProvider | undefined>;
+    getInstance(key: string): Promise<InstanceData | null>;
+    getProvider(key: string): Promise<WhatsAppProvider | null>;
     listInstances(): Promise<InstanceData[]>;
     deleteInstance(key: string): Promise<void>;
     initAllInstances(): Promise<void>;

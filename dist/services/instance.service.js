@@ -1,10 +1,9 @@
-import { WhatsAppProvider } from '../providers/whatsapp.provider.js';
-import logger from '../utils/logger.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import QRCode from 'qrcode';
-// import { webhookService } from './webhook.service.js'; // Circular dependency
+import { WhatsAppProvider } from '../providers/whatsapp.provider.js';
+import logger from '../utils/logger.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 class InstanceService {
@@ -14,133 +13,184 @@ class InstanceService {
     constructor() {
         this.instancesFile = path.resolve(__dirname, '..', '..', 'sessions', 'instances.json');
         try {
-            // Ensure sessions directory exists
             const sessionsDir = path.dirname(this.instancesFile);
             if (!fs.existsSync(sessionsDir)) {
                 fs.mkdirSync(sessionsDir, { recursive: true });
             }
             this.loadFromCache();
         }
-        catch (e) {
-            logger.error(e, 'Critical error initializing InstanceService folders');
+        catch (error) {
+            logger.error({ err: error }, 'Critical error initializing InstanceService folders');
         }
     }
     loadFromCache() {
-        if (fs.existsSync(this.instancesFile)) {
-            try {
-                const data = JSON.parse(fs.readFileSync(this.instancesFile, 'utf-8'));
-                if (Array.isArray(data)) {
-                    data.forEach((inst) => {
-                        const normalized = {
-                            key: inst.key.toLowerCase(),
-                            name: inst.name || inst.key,
-                            token: inst.token,
-                            status: inst.status,
-                            phone: inst.phone,
-                            webhookUrl: inst.webhookUrl,
-                            createdAt: inst.createdAt ? new Date(inst.createdAt) : (inst.created_at ? new Date(inst.created_at) : new Date()),
-                            updatedAt: inst.updatedAt ? new Date(inst.updatedAt) : (inst.updated_at ? new Date(inst.updated_at) : new Date()),
-                        };
-                        this.instancesData.set(normalized.key, normalized);
-                    });
+        if (!fs.existsSync(this.instancesFile)) {
+            return;
+        }
+        try {
+            const data = JSON.parse(fs.readFileSync(this.instancesFile, 'utf-8'));
+            if (!Array.isArray(data)) {
+                return;
+            }
+            data.forEach((inst) => {
+                if (!inst.key) {
+                    return;
                 }
-            }
-            catch (e) {
-                logger.error(e, 'Failed to load instances from cache');
-            }
+                const normalized = {
+                    key: inst.key.toLowerCase(),
+                    name: inst.name || inst.key,
+                    token: inst.token || `me_${Math.random().toString(36).substring(2, 10)}`,
+                    status: inst.status || 'disconnected',
+                    phone: inst.phone,
+                    qr: inst.qr,
+                    qrBase64: inst.qrBase64,
+                    webhookUrl: inst.webhookUrl,
+                    createdAt: inst.createdAt ? new Date(inst.createdAt) : new Date(),
+                    updatedAt: inst.updatedAt ? new Date(inst.updatedAt) : new Date(),
+                };
+                this.instancesData.set(normalized.key, normalized);
+            });
+        }
+        catch (error) {
+            logger.error({ err: error }, 'Failed to load instances from cache');
         }
     }
     saveToCache() {
         const data = Array.from(this.instancesData.values());
         fs.writeFileSync(this.instancesFile, JSON.stringify(data, null, 2));
     }
+    async ensureInstance(key, name, token, webhookUrl) {
+        return this.createInstance(key, name, token, webhookUrl);
+    }
     async createInstance(key, name, token, webhookUrl) {
         const normalizedKey = key.toLowerCase();
-        if (this.instancesData.has(normalizedKey)) {
-            return this.instancesData.get(normalizedKey);
+        const existingInstance = this.instancesData.get(normalizedKey);
+        if (existingInstance) {
+            existingInstance.updatedAt = new Date();
+            if (webhookUrl) {
+                existingInstance.webhookUrl = webhookUrl;
+            }
+            this.saveToCache();
+            return existingInstance;
         }
         const instance = {
             key: normalizedKey,
-            name: name || key,
-            token: token || `me_${Math.random().toString(36).substring(7)}`,
+            name: name || normalizedKey,
+            token: token || `me_${Math.random().toString(36).substring(2, 10)}`,
             status: 'disconnected',
-            webhookUrl: webhookUrl,
+            webhookUrl,
             createdAt: new Date(),
             updatedAt: new Date(),
         };
         this.instancesData.set(normalizedKey, instance);
         this.saveToCache();
+        logger.info({ instance: normalizedKey }, 'Instance created in local cache');
         return instance;
     }
     async startInstance(key) {
         const normalizedKey = key.toLowerCase();
-        if (this.providers.has(normalizedKey))
-            return this.providers.get(normalizedKey);
+        await this.ensureInstance(normalizedKey);
+        const existingProvider = this.providers.get(normalizedKey);
+        if (existingProvider) {
+            return existingProvider;
+        }
         const provider = new WhatsAppProvider(normalizedKey);
         this.providers.set(normalizedKey, provider);
+        this.updateStatus(normalizedKey, 'connecting');
         provider.on('connection.qr', (qr) => {
-            this.updateStatus(normalizedKey, 'qrcode', { qr });
+            void this.updateStatus(normalizedKey, 'qrcode', { qr });
         });
         provider.on('connection.open', (user) => {
-            this.updateStatus(normalizedKey, 'connected', { phone: user.id.split(':')[0] });
+            void this.updateStatus(normalizedKey, 'connected', { phone: user?.id?.split(':')[0] });
         });
-        provider.on('connection.close', ({ shouldReconnect }) => {
-            this.updateStatus(normalizedKey, 'disconnected');
+        provider.on('connection.close', ({ shouldReconnect, error }) => {
+            void this.updateStatus(normalizedKey, 'disconnected', {
+                message: error?.message || 'Connection closed',
+            });
             if (!shouldReconnect) {
                 this.providers.delete(normalizedKey);
             }
         });
-        // Handle messages relaying to webhook
-        provider.on('messages.upsert', async (m) => {
+        provider.on('messages.upsert', async (message) => {
             const { webhookService } = await import('./webhook.service.js');
-            await webhookService.dispatch(normalizedKey, 'messages.upsert', m);
+            await webhookService.dispatch(normalizedKey, 'messages.upsert', message);
         });
-        await provider.init();
+        try {
+            await provider.init();
+            logger.info({ instance: normalizedKey }, 'Instance provider initialized');
+        }
+        catch (error) {
+            this.providers.delete(normalizedKey);
+            await this.updateStatus(normalizedKey, 'disconnected');
+            logger.error({ err: error, instance: normalizedKey }, 'Failed to initialize instance provider');
+            throw error;
+        }
         return provider;
     }
-    updateStatus(key, status, extra = {}) {
+    async waitForQrCode(key, timeoutMs = 15000) {
         const normalizedKey = key.toLowerCase();
-        const data = this.instancesData.get(normalizedKey);
-        if (data) {
-            data.status = status;
-            if (extra.phone)
-                data.phone = extra.phone;
-            if (extra.qr) {
-                data.qr = extra.qr;
-                QRCode.toDataURL(extra.qr).then((url) => {
-                    data.qrBase64 = url;
-                }).catch((err) => logger.error(err, 'Failed to generate QR Base64'));
+        const startedAt = Date.now();
+        while (Date.now() - startedAt < timeoutMs) {
+            const data = await this.getInstance(normalizedKey);
+            if (data?.qrBase64 || data?.status === 'connected') {
+                return data;
             }
-            if (status !== 'qrcode') {
-                delete data.qr;
-                delete data.qrBase64;
-            }
-            data.updatedAt = new Date();
-            import('./webhook.service.js').then(({ webhookService }) => {
-                if (status === 'qrcode' && extra.qr) {
-                    // Format expected by miniEvoController.ts: { event: 'qrcode', qr: '<raw_qr_string>' }
-                    webhookService.dispatch(normalizedKey, 'qrcode', {
-                        qr: extra.qr,
-                        instanceKey: normalizedKey,
-                    }).catch(err => logger.error(err, `Error dispatching QR webhook for ${normalizedKey}`));
-                }
-                else {
-                    // Format expected by miniEvoController.ts: { event: 'status', status: 'connected'|'disconnected' }
-                    const mappedStatus = status === 'connected' ? 'connected' : 'disconnected';
-                    webhookService.dispatch(normalizedKey, 'status', {
-                        status: mappedStatus,
-                        instanceKey: normalizedKey,
-                    }).catch(err => logger.error(err, `Error dispatching status webhook for ${normalizedKey}`));
-                }
-            });
-            logger.info(`Instance [${normalizedKey}] status changed to ${status}`);
+            await new Promise((resolve) => setTimeout(resolve, 500));
         }
+        return this.getInstance(normalizedKey);
+    }
+    async updateStatus(key, status, extra = {}) {
+        const normalizedKey = key.toLowerCase();
+        const data = await this.ensureInstance(normalizedKey);
+        data.status = status;
+        if (extra.phone) {
+            data.phone = extra.phone;
+        }
+        if (extra.qr) {
+            data.qr = extra.qr;
+            try {
+                data.qrBase64 = await QRCode.toDataURL(extra.qr);
+            }
+            catch (error) {
+                logger.error({ err: error, instance: normalizedKey }, 'Failed to generate QR Base64');
+                data.qrBase64 = null;
+            }
+        }
+        if (status !== 'qrcode') {
+            delete data.qr;
+            delete data.qrBase64;
+        }
+        data.updatedAt = new Date();
+        this.saveToCache();
+        try {
+            const { webhookService } = await import('./webhook.service.js');
+            if (status === 'qrcode' && extra.qr) {
+                await webhookService.dispatch(normalizedKey, 'qrcode', {
+                    status: 'QRCODE',
+                    qrcode: data.qrBase64 ?? null,
+                    qr: extra.qr,
+                    instance: normalizedKey,
+                });
+            }
+            else {
+                await webhookService.dispatch(normalizedKey, 'status', {
+                    status: status === 'connected' ? 'CONNECTED' : 'DISCONNECTED',
+                    qrcode: null,
+                    instance: normalizedKey,
+                    message: extra.message,
+                });
+            }
+        }
+        catch (error) {
+            logger.error({ err: error, instance: normalizedKey }, 'Error dispatching instance webhook');
+        }
+        logger.info({ instance: normalizedKey, status }, 'Instance status updated');
     }
     async getInstance(key) {
-        return this.instancesData.get(key.toLowerCase());
+        return this.instancesData.get(key.toLowerCase()) || null;
     }
     async getProvider(key) {
-        return this.providers.get(key.toLowerCase());
+        return this.providers.get(key.toLowerCase()) || null;
     }
     async listInstances() {
         return Array.from(this.instancesData.values());
@@ -154,24 +204,23 @@ class InstanceService {
         }
         this.instancesData.delete(normalizedKey);
         this.saveToCache();
-        // Remove session directory
         const sessionDir = path.resolve(__dirname, '..', '..', 'sessions', normalizedKey);
         if (fs.existsSync(sessionDir)) {
             fs.rmSync(sessionDir, { recursive: true, force: true });
         }
+        logger.info({ instance: normalizedKey }, 'Instance deleted');
     }
     async initAllInstances() {
         const instances = Array.from(this.instancesData.values());
-        logger.info(`Starting ${instances.length} instances from cache...`);
+        logger.info({ count: instances.length }, 'Starting cached instances');
         for (const instance of instances) {
             try {
-                logger.info(`Auto-starting instance: ${instance.key}`);
+                logger.info({ instance: instance.key }, 'Auto-starting instance');
                 await this.startInstance(instance.key);
-                // Wait 10s between each instance to keep CPU/Memory low during boot
-                await new Promise(r => setTimeout(r, 10000));
+                await new Promise((resolve) => setTimeout(resolve, 10000));
             }
-            catch (e) {
-                logger.error(e, `Failed to auto-start instance ${instance.key}`);
+            catch (error) {
+                logger.error({ err: error, instance: instance.key }, 'Failed to auto-start instance');
             }
         }
     }

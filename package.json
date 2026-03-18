@@ -7,7 +7,8 @@
     "start": "node dist/index.js",
     "dev": "nodemon --exec ts-node src/index.ts",
     "build": "tsc",
-    "test": "node -e \"console.log('No automated tests configured yet.')\""
+    "test": "node -e \"console.log('No automated tests configured yet.')\"",
+    "test:internal": "node scripts/internal-flow.mjs"
   },
   "keywords": [],
   "author": "",
@@ -31,7 +32,9 @@
     "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
     "ws": "^8.19.0",
-    "zod": "^4.3.6"
+    "zod": "^4.3.6",
+    "cacheable": "file:vendor/cacheable",
+    "hookified": "file:vendor/hookified"
   },
   "devDependencies": {
     "@types/cors": "^2.8.19",
@@ -45,5 +48,9 @@
     "nodemon": "^3.1.9",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.2"
+  },
+  "overrides": {
+    "cacheable": "file:vendor/cacheable",
+    "hookified": "file:vendor/hookified"
   }
 }

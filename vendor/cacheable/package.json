@@ -1,0 +1,12 @@
+{
+  "name": "cacheable",
+  "version": "2.3.2-local",
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "exports": {
+    ".": {
+      "default": "./dist/index.js"
+    }
+  }
+}

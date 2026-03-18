@@ -1,0 +1,11 @@
+{
+  "name": "hookified",
+  "version": "1.15.0-local",
+  "type": "module",
+  "main": "./dist/node/index.js",
+  "exports": {
+    ".": {
+      "default": "./dist/node/index.js"
+    }
+  }
+}

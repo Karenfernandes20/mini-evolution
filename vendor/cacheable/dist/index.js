@@ -17,7 +17,11 @@ export class CacheableStats {
   constructor({ enabled = true } = {}) {
     this.enabled = enabled;
     this.count = 0;
+    this.hits = 0;
+    this.misses = 0;
   }
+  incrementHits() { if (this.enabled) this.hits++; }
+  incrementMisses() { if (this.enabled) this.misses++; }
 }
 
 class BaseMemoryStore {
@@ -79,6 +83,7 @@ export class Cacheable extends EventEmitter {
     this.primary = options.primary;
     this.secondary = options.secondary;
     this.stats = new CacheableStats({ enabled: options.stats ?? true });
+    this._stats = this.stats; // Alias for compatibility with newer versions
     this.memory = new BaseMemoryStore();
   }
 
@@ -102,6 +107,11 @@ export class Cacheable extends EventEmitter {
 
   async get(key) {
     const value = this.memory.get(key);
+    if (value === undefined) {
+      this.stats.incrementMisses();
+    } else {
+      this.stats.incrementHits();
+    }
     this._refreshCount();
     return value;
   }

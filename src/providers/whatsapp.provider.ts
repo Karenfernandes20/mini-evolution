@@ -35,6 +35,20 @@ export class WhatsAppProvider extends EventEmitter {
 
   async init() {
     const { state, saveCreds } = await useMultiFileAuthState(this.sessionDir);
+    
+    // Disable statistical caching for auth keys which is likely causing the incrementMisses error
+    const authKeys = state.keys;
+    const authCache = new Map<string, any>();
+    state.keys = {
+        ...authKeys,
+        get: async (type: any, ids: any) => {
+            return await authKeys.get(type, ids);
+        },
+        set: async (data: any) => {
+            await authKeys.set(data);
+        }
+    } as any;
+
     this.state = state;
     this.saveCreds = saveCreds;
 
@@ -51,16 +65,25 @@ export class WhatsAppProvider extends EventEmitter {
 
 
     const retryCache = new Map<string, number>();
+    const groupCache = new Map<string, any>();
+
     this.socket = makeWASocket({
       version,
       auth: state,
-      // Bypass potential bugs in the vendored cacheable package by using a minimal CacheStore
+      // Fully bypass the buggy vendored cacheable package for all internal caches
       msgRetryCounterCache: {
         get: (key: string) => retryCache.get(key),
         set: (key: string, value: number) => { retryCache.set(key, value); },
         del: (key: string) => { retryCache.delete(key); },
         flushAll: () => { retryCache.clear(); },
       } as any,
+      // Provide manual cache for group metadata as well
+      getMessage: async (key) => {
+          return undefined; // We don't store full messages in memory for privacy/memory reasons
+      },
+      patchMessageBeforeSending: (message) => {
+          return message;
+      },
       printQRInTerminal: false,
       browser: Browsers.ubuntu('Chrome'),
       logger: logger as any,

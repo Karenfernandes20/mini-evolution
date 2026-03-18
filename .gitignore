@@ -1,7 +1,11 @@
 node_modules/
+dist/
 .env
 auth/
 sessions/
 instances.json
 temp/
 *.log
+.DS_Store
+.idea/
+.vscode/

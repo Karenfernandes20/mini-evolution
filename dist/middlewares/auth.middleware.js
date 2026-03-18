@@ -1,5 +1,6 @@
 import { env } from '../config/env.js';
 import { instanceService } from '../services/instance.service.js';
+import logger from '../utils/logger.js';
 export const authMiddleware = async (req, res, next) => {
     // Skip auth for frontend and health
     if (req.path === '/' || req.path === '/health') {
@@ -18,10 +19,11 @@ export const authMiddleware = async (req, res, next) => {
         }
     }
     if (!apiKey) {
+        logger.warn(`[AUTH] Missing API key for ${req.method} ${req.path}`);
         return res.status(401).json({ error: 'Missing API Key' });
     }
-    // Global Key check
-    if (apiKey === env.GLOBAL_API_KEY) {
+    // Master Keys check (Global or Admin)
+    if (apiKey === env.GLOBAL_API_KEY || apiKey === env.ADMIN_TOKEN) {
         return next();
     }
     // Instance specific key check
@@ -32,6 +34,10 @@ export const authMiddleware = async (req, res, next) => {
         if (instance && instance.token === apiKey) {
             return next();
         }
+        logger.warn(`[AUTH] Invalid key for instance ${normalizedKey}. Got: ${apiKey.substring(0, 5)}...`);
+    }
+    else {
+        logger.warn(`[AUTH] Invalid master key and no instance key found. Got: ${apiKey.substring(0, 5)}...`);
     }
     return res.status(403).json({ error: 'Invalid API Key' });
 };

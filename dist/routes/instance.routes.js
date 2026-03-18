@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { instanceController } from '../controllers/instance.controller.js';
 const router = Router();
 router.post('/create', instanceController.create);
+router.post('/connect', instanceController.connect);
 router.post('/connect/:instance', instanceController.connect);
 router.get('/list', instanceController.list);
 router.get('/status/:instance', instanceController.status);

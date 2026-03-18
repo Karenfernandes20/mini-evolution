@@ -1,2 +1,2 @@
-import { Request, Response, NextFunction } from 'express';
-export declare const authMiddleware: (req: Request, res: Response, next: NextFunction) => Promise<void | Response<any, Record<string, any>>>;
+import { NextFunction, Request, Response } from 'express';
+export declare const authMiddleware: (req: Request, res: Response, next: NextFunction) => void | Response<any, Record<string, any>>;

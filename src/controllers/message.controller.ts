@@ -1,8 +1,9 @@
+import fs from 'fs';
 import { Request, Response } from 'express';
+import { z } from 'zod';
 import { instanceService } from '../services/instance.service.js';
 import { mediaService } from '../services/media.service.js';
-import { z } from 'zod';
-import fs from 'fs';
+import { buildApiResponse } from '../utils/api-response.js';
 
 const sendTextSchema = z.object({
   number: z.string(),
@@ -10,35 +11,53 @@ const sendTextSchema = z.object({
 });
 
 const sendMediaSchema = z.object({
-    number: z.string(),
-    media: z.string(), // URL or Base64
-    caption: z.string().optional(),
-    fileName: z.string().optional(),
+  number: z.string(),
+  media: z.string(),
+  caption: z.string().optional(),
+  fileName: z.string().optional(),
 });
 
 const sendReactionSchema = z.object({
-    number: z.string(),
-    emoji: z.string(),
-    messageId: z.string(),
+  number: z.string(),
+  emoji: z.string(),
+  messageId: z.string(),
 });
 
 export class MessageController {
   async sendText(req: Request, res: Response) {
     const instance = req.params.instance as string;
     const { number, text } = sendTextSchema.parse(req.body);
-    
+
     const provider = await instanceService.getProvider(instance);
-    if (!provider) return res.status(404).json({ error: 'Instance not found or not started' });
+    if (!provider) {
+      return res.status(404).json(
+        buildApiResponse({
+          success: false,
+          status: 'ERROR',
+          instance,
+          message: 'Instance not found or not started',
+        }),
+      );
+    }
 
     const jid = number.includes('@') ? number : `${number}@s.whatsapp.net`;
     const result = await provider.sendMessage(jid, { text });
-    
-    if (!result) throw new Error('Failed to send message');
 
-    return res.json({ 
-        success: true, 
+    if (!result) {
+      throw new Error('Failed to send message');
+    }
+
+    return res.json({
+      ...buildApiResponse({
+        success: true,
+        status: 'CONNECTED',
+        instance,
+        message: 'Message sent successfully',
+      }),
+      data: {
         key: result.key,
-        message: result.message
+        message: result.message,
+      },
     });
   }
 
@@ -47,15 +66,24 @@ export class MessageController {
     const { number, media, caption, fileName } = sendMediaSchema.parse(req.body);
 
     const provider = await instanceService.getProvider(instance);
-    if (!provider) return res.status(404).json({ error: 'Instance not found or not started' });
+    if (!provider) {
+      return res.status(404).json(
+        buildApiResponse({
+          success: false,
+          status: 'ERROR',
+          instance,
+          message: 'Instance not found or not started',
+        }),
+      );
+    }
 
     const jid = number.includes('@') ? number : `${number}@s.whatsapp.net`;
-    
+
     let filePath: string;
     if (media.startsWith('http')) {
-        filePath = await mediaService.downloadFromUrl(media);
+      filePath = await mediaService.downloadFromUrl(media);
     } else {
-        filePath = await mediaService.saveBase64(media, fileName || `${type}.bin`);
+      filePath = await mediaService.saveBase64(media, fileName || `${type}.bin`);
     }
 
     const mediaContent: any = {};
@@ -63,22 +91,31 @@ export class MessageController {
 
     if (type === 'image') mediaContent.image = buffer;
     else if (type === 'audio') {
-        mediaContent.audio = buffer;
-        mediaContent.ptt = true; // Default to PTT for audio
-    }
-    else if (type === 'video') mediaContent.video = buffer;
+      mediaContent.audio = buffer;
+      mediaContent.ptt = true;
+    } else if (type === 'video') mediaContent.video = buffer;
     else if (type === 'document') {
-        mediaContent.document = buffer;
-        mediaContent.mimetype = 'application/pdf'; // fallback
-        mediaContent.fileName = fileName || 'document.pdf';
+      mediaContent.document = buffer;
+      mediaContent.mimetype = 'application/pdf';
+      mediaContent.fileName = fileName || 'document.pdf';
     }
 
     if (caption) mediaContent.caption = caption;
 
     const result = await provider.sendMessage(jid, mediaContent);
-    if (!result) throw new Error('Failed to send media');
-    
-    return res.json({ success: true, key: result.key });
+    if (!result) {
+      throw new Error('Failed to send media');
+    }
+
+    return res.json({
+      ...buildApiResponse({
+        success: true,
+        status: 'CONNECTED',
+        instance,
+        message: 'Media sent successfully',
+      }),
+      data: { key: result.key },
+    });
   }
 
   async sendImage(req: Request, res: Response) { return this.sendMedia(req, res, 'image'); }
@@ -87,27 +124,46 @@ export class MessageController {
   async sendDocument(req: Request, res: Response) { return this.sendMedia(req, res, 'document'); }
 
   async sendReaction(req: Request, res: Response) {
-      const instance = req.params.instance as string;
-      const { number, emoji, messageId } = sendReactionSchema.parse(req.body);
+    const instance = req.params.instance as string;
+    const { number, emoji, messageId } = sendReactionSchema.parse(req.body);
 
-      const provider = await instanceService.getProvider(instance);
-      if (!provider) return res.status(404).json({ error: 'Instance not found' });
+    const provider = await instanceService.getProvider(instance);
+    if (!provider) {
+      return res.status(404).json(
+        buildApiResponse({
+          success: false,
+          status: 'ERROR',
+          instance,
+          message: 'Instance not found',
+        }),
+      );
+    }
 
-      const jid = number.includes('@') ? number : `${number}@s.whatsapp.net`;
-      const result = await provider.sendMessage(jid, {
-          react: {
-              text: emoji,
-              key: {
-                  remoteJid: jid,
-                  fromMe: false, // assuming reacting to received message
-                  id: messageId
-              }
-          }
-      });
+    const jid = number.includes('@') ? number : `${number}@s.whatsapp.net`;
+    const result = await provider.sendMessage(jid, {
+      react: {
+        text: emoji,
+        key: {
+          remoteJid: jid,
+          fromMe: false,
+          id: messageId,
+        },
+      },
+    });
 
-      if (!result) throw new Error('Failed to send reaction');
+    if (!result) {
+      throw new Error('Failed to send reaction');
+    }
 
-      return res.json({ success: true, key: result.key });
+    return res.json({
+      ...buildApiResponse({
+        success: true,
+        status: 'CONNECTED',
+        instance,
+        message: 'Reaction sent successfully',
+      }),
+      data: { key: result.key },
+    });
   }
 }
 

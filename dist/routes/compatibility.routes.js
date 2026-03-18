@@ -4,7 +4,7 @@ import { messageController } from '../controllers/message.controller.js';
 import { buildApiResponse } from '../utils/api-response.js';
 const router = Router();
 router.post('/send-message', async (req, res) => {
-    req.params.instance = (req.body.instanceKey || req.body.instance || '').toString().toLowerCase();
+    req.params.instance = (req.body.instanceKey || req.body.instanceName || req.body.instance || '').toString().toLowerCase();
     if (req.body.remoteJid && !req.body.number) {
         req.body.number = req.body.remoteJid;
     }
@@ -26,7 +26,7 @@ router.get('/contact/fetchContacts/:instance', async (req, res) => {
     });
 });
 router.get('/get-qr', (req, res) => {
-    req.params.instance = (req.query.instanceKey || req.query.instance || req.query.instance_key);
+    req.params.instance = (req.query.instanceKey || req.query.instanceName || req.query.instance || req.query.instance_key);
     return instanceController.connect(req, res);
 });
 router.get('/instance/qr/:instance', instanceController.connect);

@@ -264,7 +264,8 @@
         async function loadInstances() {
             try {
                 const res = await fetchAuth('/management/instances');
-                const data = await res.json();
+                const payload = await res.json();
+                const data = Array.isArray(payload) ? payload : (Array.isArray(payload.data) ? payload.data : []);
                 const container = document.getElementById('instances-container');
                 const activeCount = document.getElementById('active-count');
 
@@ -279,7 +280,7 @@
                     return;
                 }
 
-                activeCount.innerText = data.length;
+                activeCount.innerText = String(data.length);
                 container.innerHTML = data.map(inst => `
                     <div class="glass p-6 rounded-3xl card-hover border border-transparent shadow-xl flex flex-col justify-between">
                         <div>

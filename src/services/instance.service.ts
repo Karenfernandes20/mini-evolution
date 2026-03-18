@@ -133,8 +133,37 @@ class InstanceService {
       }
     });
 
+    // Group Name Cache
+    const groupNameCache = new Map<string, string>();
+
     provider.on('messages.upsert', async (message) => {
       logger.info({ instance: normalizedKey, count: message.messages?.length }, '📩 Message received, dispatching webhook');
+      
+      // Auto-enrich group names if applicable
+      for (const msg of message.messages || []) {
+        const jid = msg.key.remoteJid;
+        if (jid?.endsWith('@g.us')) {
+          try {
+            if (groupNameCache.has(jid)) {
+              (message as any).groupName = groupNameCache.get(jid);
+              (message as any).subject = groupNameCache.get(jid);
+            } else {
+              const socket = provider.getSocket();
+              if (socket) {
+                const metadata = await socket.groupMetadata(jid);
+                if (metadata?.subject) {
+                  groupNameCache.set(jid, metadata.subject);
+                  (message as any).groupName = metadata.subject;
+                  (message as any).subject = metadata.subject;
+                }
+              }
+            }
+          } catch (e) {
+            // Ignore metadata fetch errors (fail gracefully)
+          }
+        }
+      }
+
       const { webhookService } = await import('./webhook.service.js');
       await webhookService.dispatch(normalizedKey, 'messages.upsert', message);
     });

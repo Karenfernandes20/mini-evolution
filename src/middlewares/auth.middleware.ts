@@ -34,7 +34,8 @@ const getApiKey = (req: Request) => {
 };
 
 const getPathInstanceName = (req: Request) => {
-  const pathSegments = req.path.split('/').filter(Boolean);
+  const path = req.originalUrl.split('?')[0];
+  const pathSegments = path.split('/').filter(Boolean);
   if (pathSegments.length < 2) {
     return '';
   }

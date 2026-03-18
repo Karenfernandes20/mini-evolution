@@ -31,8 +31,11 @@ router.get('/contact/fetchContacts/:instance', async (req, res) => {
 
 // QR Compatibility
 router.get('/get-qr', (req, res) => {
-    (req.params as any).instance = (req.query.instanceKey || req.query.instance) as string;
+    (req.params as any).instance = (req.query.instanceKey || req.query.instance || req.query.instance_key) as string;
     return instanceController.connect(req, res);
 });
+
+router.get('/instance/qr/:instance', instanceController.connect);
+router.post('/instance/qr/:instance', instanceController.connect);
 
 export default router;

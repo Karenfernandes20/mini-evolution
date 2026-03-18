@@ -6,7 +6,7 @@ import { buildApiResponse } from '../utils/api-response.js';
 const router = Router();
 
 router.post('/send-message', async (req, res) => {
-  (req.params as any).instance = (req.body.instanceKey || req.body.instance || '').toString().toLowerCase();
+  (req.params as any).instance = (req.body.instanceKey || req.body.instanceName || req.body.instance || '').toString().toLowerCase();
 
   if (req.body.remoteJid && !req.body.number) {
     req.body.number = req.body.remoteJid;
@@ -33,7 +33,7 @@ router.get('/contact/fetchContacts/:instance', async (req, res) => {
 });
 
 router.get('/get-qr', (req, res) => {
-  (req.params as any).instance = (req.query.instanceKey || req.query.instance || req.query.instance_key) as string;
+  (req.params as any).instance = (req.query.instanceKey || req.query.instanceName || req.query.instance || req.query.instance_key) as string;
   return instanceController.connect(req, res);
 });
 

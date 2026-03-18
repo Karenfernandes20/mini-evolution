@@ -1,24 +1,60 @@
-import { z } from 'zod';
 import { instanceService } from '../services/instance.service.js';
 import logger from '../utils/logger.js';
 import { buildApiResponse } from '../utils/api-response.js';
-const instanceBodySchema = z.object({
-    instance: z.string().min(1),
-});
-const getInstanceName = (req) => {
-    if (typeof req.params.instance === 'string' && req.params.instance.trim()) {
-        return req.params.instance.trim().toLowerCase();
+const normalizeInstanceName = (value) => value.trim().toLowerCase();
+const getBodyInstanceName = (body) => {
+    if (!body || typeof body !== 'object') {
+        return '';
     }
-    const parsed = instanceBodySchema.safeParse(req.body ?? {});
-    if (parsed.success) {
-        return parsed.data.instance.trim().toLowerCase();
+    const candidates = [
+        body.instance,
+        body.instanceName,
+        body.instanceKey,
+        body.key,
+        body.name,
+    ];
+    for (const candidate of candidates) {
+        if (typeof candidate === 'string' && candidate.trim()) {
+            return normalizeInstanceName(candidate);
+        }
     }
     return '';
 };
+const getQueryInstanceName = (req) => {
+    const candidates = [
+        req.query?.instance,
+        req.query?.instanceName,
+        req.query?.instanceKey,
+        req.query?.instance_key,
+    ];
+    for (const candidate of candidates) {
+        if (typeof candidate === 'string' && candidate.trim()) {
+            return normalizeInstanceName(candidate);
+        }
+    }
+    return '';
+};
+const getInstanceName = (req) => {
+    if (typeof req.params.instance === 'string' && req.params.instance.trim()) {
+        return normalizeInstanceName(req.params.instance);
+    }
+    const bodyInstance = getBodyInstanceName(req.body ?? {});
+    if (bodyInstance) {
+        return bodyInstance;
+    }
+    return getQueryInstanceName(req);
+};
 export class InstanceController {
     async create(req, res) {
-        const { instance } = instanceBodySchema.parse(req.body);
-        const normalizedInstance = instance.trim().toLowerCase();
+        const normalizedInstance = getInstanceName(req);
+        if (!normalizedInstance) {
+            return res.status(400).json(buildApiResponse({
+                success: false,
+                status: 'ERROR',
+                instance: '',
+                message: 'One of "instance", "instanceName", "instanceKey", "key" or "name" is required',
+            }));
+        }
         logger.info({ route: req.originalUrl, body: req.body, instance: normalizedInstance }, 'Instance create requested');
         const data = await instanceService.ensureInstance(normalizedInstance);
         return res.json(buildApiResponse({
@@ -36,7 +72,7 @@ export class InstanceController {
                 success: false,
                 status: 'ERROR',
                 instance: '',
-                message: 'The "instance" field is required',
+                message: 'One of "instance", "instanceName" or "instanceKey" is required',
             }));
         }
         logger.info({ route: req.originalUrl, body: req.body, instance }, 'Instance connect requested');
@@ -77,7 +113,7 @@ export class InstanceController {
                 success: false,
                 status: 'ERROR',
                 instance: '',
-                message: 'The "instance" field is required',
+                message: 'One of "instance", "instanceName" or "instanceKey" is required',
             }));
         }
         logger.info({ route: req.originalUrl, body: req.body, instance }, 'Instance status requested');

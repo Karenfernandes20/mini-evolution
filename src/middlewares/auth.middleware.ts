@@ -39,14 +39,18 @@ const getPathInstanceName = (req: Request) => {
     return '';
   }
 
-  const [resource, instance] = pathSegments;
-  const instanceRoutes = new Set(['connect', 'status', 'restart', 'delete', 'sendText', 'connectionState', 'qr']);
+  // Detect common instance route prefixes
+  const resource = pathSegments[0].toLowerCase();
+  const instancePrefixes = new Set(['instance', 'chat', 'message', 'contact', 'group']);
 
-  if (!instanceRoutes.has(resource) || !instance?.trim()) {
-    return '';
+  if (instancePrefixes.has(resource)) {
+    // If the path is /chat/downloadMedia/pessoal, the last segment is the instance
+    // If it's /instance/status/pessoal, the last segment is the instance
+    const instance = pathSegments[pathSegments.length - 1];
+    return instance?.trim()?.toLowerCase() || '';
   }
 
-  return instance.trim().toLowerCase();
+  return '';
 };
 
 const isInstanceScopedRoute = (req: Request) => {

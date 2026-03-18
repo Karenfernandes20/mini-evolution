@@ -5,6 +5,7 @@ import QRCode from 'qrcode';
 import { WhatsAppProvider } from '../providers/whatsapp.provider.js';
 import { InstanceData, InstanceStatus } from '../types/instance.js';
 import logger from '../utils/logger.js';
+import { pool } from '../config/database.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -74,7 +75,7 @@ class InstanceService {
 
   async createInstance(key: string, name?: string, token?: string, webhookUrl?: string) {
     const normalizedKey = key.toLowerCase();
-    const existingInstance = this.instancesData.get(normalizedKey);
+    const existingInstance = await this.getInstance(normalizedKey);
 
     if (existingInstance) {
       existingInstance.updatedAt = new Date();
@@ -248,7 +249,35 @@ class InstanceService {
   }
 
   async getInstance(key: string) {
-    return this.instancesData.get(key.toLowerCase()) || null;
+    const normalizedKey = key.toLowerCase();
+    let instance = this.instancesData.get(normalizedKey);
+
+    if (!instance && pool) {
+      try {
+        const res = await pool.query(
+          'SELECT instance_key, name, api_key, status FROM company_instances WHERE LOWER(instance_key) = $1 OR LOWER(name) = $1',
+          [normalizedKey],
+        );
+
+        if (res.rows.length > 0) {
+          const row = res.rows[0];
+          instance = {
+            key: row.instance_key.toLowerCase(),
+            name: row.name || row.instance_key,
+            token: row.api_key,
+            status: 'disconnected',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          };
+          this.instancesData.set(instance.key, instance);
+          logger.info({ instance: instance.key }, 'Instance loaded from database into cache');
+        }
+      } catch (error) {
+        logger.error({ err: error, instance: normalizedKey }, 'Failed to fetch instance from database');
+      }
+    }
+
+    return instance || null;
   }
 
   async getProvider(key: string) {

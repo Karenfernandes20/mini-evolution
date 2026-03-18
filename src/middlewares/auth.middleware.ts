@@ -49,7 +49,34 @@ const getPathInstanceName = (req: Request) => {
   return instance.trim().toLowerCase();
 };
 
+const isInstanceScopedRoute = (req: Request) => {
+  const route = req.originalUrl.split('?')[0];
+
+  if (
+    route.startsWith('/instance/')
+    || route.startsWith('/message/')
+    || route === '/instance/connect'
+    || route === '/send-message'
+    || route === '/get-qr'
+  ) {
+    return true;
+  }
+
+  const compatibilityRoutes = [
+    '/instance/connect/',
+    '/instance/connectionState/',
+    '/instance/qr/',
+    '/contact/fetchContacts/',
+  ];
+
+  return compatibilityRoutes.some((prefix) => route.startsWith(prefix));
+};
+
 const getInstanceName = (req: Request) => {
+  if (!isInstanceScopedRoute(req)) {
+    return getPathInstanceName(req);
+  }
+
   const candidates = [
     req.params.instance,
     req.body?.instance,

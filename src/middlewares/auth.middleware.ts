@@ -8,13 +8,18 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
       return next();
   }
 
-  // Allow Admin Dashboard access
-  const authHeader = req.headers['authorization'];
-  if (authHeader === `Bearer ${env.ADMIN_TOKEN}`) {
-      return next();
-  }
+  // Get API Key from multiple common sources
+  let apiKey = (req.headers['apikey'] || req.query.apikey || (req.body && (req.body.apikey || req.body.token))) as string | undefined;
 
-  const apiKey = req.headers['apikey'] || req.query.apikey || (req.body && (req.body.apikey || req.body.token));
+  // If not found, try Authorization header (standard)
+  if (!apiKey && req.headers['authorization']) {
+      const authHeader = req.headers['authorization'];
+      if (authHeader.startsWith('Bearer ')) {
+          apiKey = authHeader.substring(7);
+      } else {
+          apiKey = authHeader; // Raw token in Authorization header
+      }
+  }
 
   if (!apiKey) {
     return res.status(401).json({ error: 'Missing API Key' });

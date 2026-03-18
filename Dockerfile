@@ -6,7 +6,7 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
-RUN npm run build || echo "Build skipped (JS mode fallback)"
+RUN npm run build
 
 FROM node:20-slim
 
@@ -20,6 +20,6 @@ COPY --from=builder /app/src ./src
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/sessions ./sessions
 
-EXPOSE 3001
+EXPOSE 3000
 
-CMD ["node", "dist/index.js"]
+CMD ["npm", "start"]

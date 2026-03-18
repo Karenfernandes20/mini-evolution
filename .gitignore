@@ -3,3 +3,5 @@ node_modules/
 auth/
 sessions/
 instances.json
+temp/
+*.log

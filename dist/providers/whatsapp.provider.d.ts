@@ -5,6 +5,8 @@ export declare class WhatsAppProvider extends EventEmitter {
     private state;
     private saveCreds;
     private sessionDir;
+    private reconnectAttempts;
+    private readonly maxReconnectAttempts;
     constructor(instanceKey: string);
     private static latestVersion;
     init(): Promise<void>;

@@ -12,6 +12,8 @@ export class WhatsAppProvider extends EventEmitter {
     state = null;
     saveCreds = null;
     sessionDir;
+    reconnectAttempts = 0;
+    maxReconnectAttempts = 5;
     constructor(instanceKey) {
         super();
         this.instanceKey = instanceKey;
@@ -62,11 +64,17 @@ export class WhatsAppProvider extends EventEmitter {
             if (connection === 'close') {
                 const shouldReconnect = lastDisconnect?.error?.output?.statusCode !== DisconnectReason.loggedOut;
                 this.emit('connection.close', { shouldReconnect, error: lastDisconnect?.error });
-                if (shouldReconnect) {
-                    this.init();
+                if (shouldReconnect && this.reconnectAttempts < this.maxReconnectAttempts) {
+                    this.reconnectAttempts++;
+                    logger.warn(`[${this.instanceKey}] Reconnecting... attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts}`);
+                    setTimeout(() => this.init(), 3000);
+                }
+                else if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+                    logger.error(`[${this.instanceKey}] Max reconnect attempts reached. Stopping.`);
                 }
             }
             else if (connection === 'open') {
+                this.reconnectAttempts = 0;
                 this.emit('connection.open', this.socket?.user);
             }
         });

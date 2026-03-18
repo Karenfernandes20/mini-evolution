@@ -12,13 +12,27 @@ export class InstanceController {
     }
     async connect(req, res) {
         const instance = req.params.instance.toLowerCase();
-        const provider = await instanceService.startInstance(instance);
-        const data = await instanceService.getInstance(instance);
-        // Wait for QR or connection if possible? No, return current state.
+        // Ensure instance is started
+        await instanceService.startInstance(instance);
+        // Poll for QR code for up to 5 seconds if not already present
+        let data = await instanceService.getInstance(instance);
+        let attempts = 0;
+        while (attempts < 5 && data?.status === 'disconnected' && !data?.qrBase64) {
+            await new Promise(r => setTimeout(r, 1000));
+            data = await instanceService.getInstance(instance);
+            attempts++;
+        }
+        // Evolution API compatible response
         return res.json({
-            instance,
-            status: data?.status || 'disconnected',
-            qrcode: data?.qr // we should probably store QR in instance data temporarily
+            instance: {
+                instanceName: instance,
+                status: data?.status || 'disconnected',
+                state: data?.status === 'connected' ? 'open' : 'close'
+            },
+            qrcode: {
+                base64: data?.qrBase64 || null,
+                code: data?.qr || null
+            }
         });
     }
     async list(req, res) {

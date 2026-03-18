@@ -19,7 +19,9 @@ router.post('/send-message', async (req, res) => {
 
 // Evolution compatibility aliases
 router.get('/instance/connect/:instance', instanceController.connect);
+router.post('/instance/connect/:instance', instanceController.connect);
 router.get('/instance/connectionState/:instance', instanceController.status);
+router.post('/instance/connectionState/:instance', instanceController.status);
 
 // Contacts compatibility
 router.get('/contact/fetchContacts/:instance', async (req, res) => {

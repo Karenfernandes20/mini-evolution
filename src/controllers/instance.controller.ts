@@ -263,6 +263,105 @@ export class InstanceController {
       );
     }
   }
+
+  async fetchProfilePictureUrl(req: Request, res: Response) {
+    const instance = getInstanceName(req);
+    const { number } = req.body;
+
+    if (!instance || !number) {
+      return res.status(400).json(
+        buildApiResponse({
+          success: false,
+          status: 'ERROR',
+          message: 'Instance and number are required',
+        }),
+      );
+    }
+
+    const provider = await instanceService.getProvider(instance);
+    if (!provider) {
+      return res.status(404).json(
+        buildApiResponse({
+          success: false,
+          status: 'ERROR',
+          instance,
+          message: 'Instance not found or not started',
+        }),
+      );
+    }
+
+    try {
+      const socket = (provider as any).getSocket();
+      if (!socket) {
+        throw new Error('Socket not initialized');
+      }
+
+      const jid = number.includes('@') ? number : `${number}@s.whatsapp.net`;
+      const url = await socket.profilePictureUrl(jid);
+      
+      return res.json({ 
+        profilePictureUrl: url,
+        success: true
+      });
+    } catch (error: any) {
+      logger.error({ err: error, instance, number }, 'Error fetching profile picture');
+      return res.status(404).json({ 
+        error: 'Profile picture not found',
+        message: error.message,
+        success: false
+      });
+    }
+  }
+
+  async findGroup(req: Request, res: Response) {
+    const instance = getInstanceName(req);
+    const { groupJid } = req.query;
+
+    if (!instance || !groupJid) {
+      return res.status(400).json(
+        buildApiResponse({
+          success: false,
+          status: 'ERROR',
+          message: 'Instance and groupJid are required',
+        }),
+      );
+    }
+
+    const provider = await instanceService.getProvider(instance);
+    if (!provider) {
+      return res.status(404).json(
+        buildApiResponse({
+          success: false,
+          status: 'ERROR',
+          instance,
+          message: 'Instance not found or not started',
+        }),
+      );
+    }
+
+    try {
+      const socket = (provider as any).getSocket();
+      if (!socket) {
+        throw new Error('Socket not initialized');
+      }
+
+      const metadata = await socket.groupMetadata(groupJid as string);
+      const url = await socket.profilePictureUrl(groupJid as string).catch(() => null);
+      
+      return res.json({
+        ...metadata,
+        profilePictureUrl: url,
+        success: true
+      });
+    } catch (error: any) {
+      logger.error({ err: error, instance, groupJid }, 'Error fetching group metadata');
+      return res.status(404).json({ 
+        error: 'Group not found',
+        message: error.message,
+        success: false
+      });
+    }
+  }
 }
 
 export const instanceController = new InstanceController();

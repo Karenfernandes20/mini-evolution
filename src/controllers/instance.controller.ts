@@ -4,6 +4,15 @@ import logger from '../utils/logger.js';
 import { buildApiResponse } from '../utils/api-response.js';
 
 const normalizeInstanceName = (value: string) => value.trim().toLowerCase();
+const toBuffer = (val: any) => {
+  if (!val) return null;
+  if (Buffer.isBuffer(val)) return val;
+  if (typeof val === 'object' && val.type === 'Buffer' && Array.isArray(val.data)) {
+    return Buffer.from(val.data);
+  }
+  if (Array.isArray(val)) return Buffer.from(val);
+  return val;
+};
 
 const getBodyInstanceName = (body: unknown) => {
   if (!body || typeof body !== 'object') {
@@ -236,10 +245,10 @@ export class InstanceController {
       const message: any = {
         message: {
           [messageKey]: {
-            mediaKey,
+            mediaKey: toBuffer(mediaKey),
             directPath,
             mimetype,
-            fileSha256,
+            fileSha256: toBuffer(fileSha256),
           },
         },
       };
@@ -250,6 +259,7 @@ export class InstanceController {
       return res.json({
         success: true,
         base64: base64,
+        mimetype: mimetype,
       });
     } catch (error: any) {
       logger.error({ err: error, instance }, 'Error downloading media from Baileys');

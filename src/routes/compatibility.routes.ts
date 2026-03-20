@@ -42,6 +42,7 @@ router.post('/instance/qr/:instance', instanceController.connect);
 
 router.post('/chat/downloadMedia/:instance', instanceController.downloadMedia);
 router.post('/chat/getBase64/:instance', instanceController.downloadMedia);
+router.post('/chat/getBase64FromMediaMessage/:instance', instanceController.downloadMedia);
 
 router.post('/chat/fetchProfilePictureUrl/:instance', (req, res) => {
   return instanceController.fetchProfilePictureUrl(req, res);

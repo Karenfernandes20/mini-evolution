@@ -80,8 +80,16 @@ export class MessageController {
   async sendMedia(req: Request, res: Response, type: 'image' | 'audio' | 'video' | 'document') {
     const instance = (req.params.instance || req.body.instance || req.body.instanceKey) as string;
     const body = req.body ?? {};
-    const number = getStringValue(body.number, body.remoteJid, body.phone, body.to);
-    const { media, caption, fileName } = body;
+    const mediaMessage = body.mediaMessage || {};
+    
+    const number = getStringValue(body.number, body.remoteJid, body.phone, body.to, mediaMessage.number);
+    const media = body.media || mediaMessage.media;
+    const caption = body.caption || mediaMessage.caption;
+    const fileName = body.fileName || mediaMessage.fileName;
+    const ptt = body.ptt || mediaMessage.ptt || false;
+
+    // Override type if mediatype is specified in payload
+    const finalType = (body.mediaType || mediaMessage.mediatype || type) as 'image' | 'audio' | 'video' | 'document';
 
     if (!instance || !number || !media) {
       return res.status(400).json(
@@ -111,18 +119,18 @@ export class MessageController {
     if (media.startsWith('http')) {
       filePath = await mediaService.downloadFromUrl(media);
     } else {
-      filePath = await mediaService.saveBase64(media, fileName || `${type}.bin`);
+      filePath = await mediaService.saveBase64(media, fileName || `${finalType}.bin`);
     }
 
     const mediaContent: any = {};
     const buffer = fs.readFileSync(filePath);
 
-    if (type === 'image') mediaContent.image = buffer;
-    else if (type === 'audio') {
+    if (finalType === 'image') mediaContent.image = buffer;
+    else if (finalType === 'audio') {
       mediaContent.audio = buffer;
-      mediaContent.ptt = true;
-    } else if (type === 'video') mediaContent.video = buffer;
-    else if (type === 'document') {
+      mediaContent.ptt = ptt === true || ptt === 'true';
+    } else if (finalType === 'video') mediaContent.video = buffer;
+    else if (finalType === 'document') {
       mediaContent.document = buffer;
       mediaContent.mimetype = 'application/pdf';
       mediaContent.fileName = fileName || 'document.pdf';

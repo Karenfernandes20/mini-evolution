@@ -5,8 +5,9 @@ const router = Router();
 
 router.post('/sendText', messageController.sendText);
 router.post('/sendText/:instance', messageController.sendText);
-// Future routes:
-// router.post('/sendImage/:instance', messageController.sendImage);
-// ...
+router.post('/sendMedia/:instance', (req, res) => {
+  const mediaType = req.body.mediaType || 'image';
+  return messageController.sendMedia(req, res, mediaType as any);
+});
 
 export default router;

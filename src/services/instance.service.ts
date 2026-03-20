@@ -312,7 +312,20 @@ class InstanceService {
 
     const sessionDir = path.resolve(__dirname, '..', '..', 'sessions', normalizedKey);
     if (fs.existsSync(sessionDir)) {
-      fs.rmSync(sessionDir, { recursive: true, force: true });
+      // Important: Wait for Baileys to actually release file locks
+      await new Promise(resolve => setTimeout(resolve, 1500));
+      
+      try {
+        fs.rmSync(sessionDir, { recursive: true, force: true });
+      } catch (e) {
+        logger.warn({ instance: normalizedKey, error: (e as Error).message }, 'Failed to delete session directory on first try, retrying in 2s');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        try {
+            fs.rmSync(sessionDir, { recursive: true, force: true });
+        } catch (e2) {
+            logger.error({ instance: normalizedKey, error: (e2 as Error).message }, 'Failed to delete session directory completely');
+        }
+      }
     }
 
     logger.info({ instance: normalizedKey }, 'Instance deleted');

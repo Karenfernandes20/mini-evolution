@@ -129,10 +129,11 @@ export class MessageController {
     else if (finalType === 'audio') {
       mediaContent.audio = buffer;
       mediaContent.ptt = ptt === true || ptt === 'true';
+      mediaContent.mimetype = 'audio/mp4'; // Essential for WhatsApp compatibility
     } else if (finalType === 'video') mediaContent.video = buffer;
     else if (finalType === 'document') {
       mediaContent.document = buffer;
-      mediaContent.mimetype = 'application/pdf';
+      mediaContent.mimetype = body.mimetype || mediaMessage.mimetype || 'application/pdf';
       mediaContent.fileName = fileName || 'document.pdf';
     }
 

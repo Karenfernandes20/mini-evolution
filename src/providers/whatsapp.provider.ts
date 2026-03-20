@@ -22,6 +22,7 @@ export class WhatsAppProvider extends EventEmitter {
   private sessionDir: string;
   private reconnectAttempts: number = 0;
   private readonly maxReconnectAttempts: number = 5;
+  private contacts: Map<string, any> = new Map();
 
   constructor(private instanceKey: string) {
     super();
@@ -99,6 +100,21 @@ export class WhatsAppProvider extends EventEmitter {
 
     this.socket.ev.on('creds.update', async () => {
       if (this.saveCreds) await this.saveCreds();
+    });
+
+    this.socket.ev.on('contacts.upsert', (newContacts) => {
+      for (const contact of newContacts) {
+        const existing = this.contacts.get(contact.id) || {};
+        this.contacts.set(contact.id, { ...existing, ...contact });
+      }
+      logger.debug({ count: newContacts.length, total: this.contacts.size }, 'Contacts upserted');
+    });
+
+    this.socket.ev.on('contacts.update', (updates) => {
+        for (const update of updates) {
+          const existing = this.contacts.get(update.id!) || {};
+          this.contacts.set(update.id!, { ...existing, ...update });
+        }
     });
 
     this.socket.ev.on('connection.update', (update) => {
@@ -198,5 +214,9 @@ export class WhatsAppProvider extends EventEmitter {
 
   getSocket() {
       return this.socket;
+  }
+
+  getContacts() {
+    return Array.from(this.contacts.values());
   }
 }

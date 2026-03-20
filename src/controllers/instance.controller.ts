@@ -192,8 +192,14 @@ export class InstanceController {
   async restart(req: Request, res: Response) {
     const instance = getInstanceName(req);
     logger.info({ route: req.originalUrl, body: req.body, instance }, 'Instance restart requested');
-    await instanceService.deleteInstance(instance);
-    await instanceService.ensureInstance(instance);
+    
+    // Stop the actual provider if running
+    const provider = await instanceService.getProvider(instance);
+    if (provider) {
+        await provider.logout();
+    }
+
+    // Just restart without deleting session
     await instanceService.startInstance(instance);
 
     const data = await instanceService.waitForQrCode(instance, 15000);

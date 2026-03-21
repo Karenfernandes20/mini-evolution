@@ -390,6 +390,31 @@ export class InstanceController {
       });
     }
   }
+
+  async fetchAllGroups(req: Request, res: Response) {
+    const instance = getInstanceName(req);
+    const provider = await instanceService.getProvider(instance);
+    if (!provider) {
+      return res.status(404).json(buildApiResponse({ success: false, status: 'ERROR', message: 'Instance not found' }));
+    }
+
+    try {
+      const socket = (provider as any).getSocket();
+      if (!socket) throw new Error('Socket not initialized');
+
+      const groups = await socket.groupFetchAllGroups();
+      // Baileys returns an object JID -> Metadata. We normalize to array for Evolution compatibility.
+      const groupsArray = Object.keys(groups).map(jid => ({
+         id: jid,
+         ...groups[jid]
+      }));
+
+      return res.json(groupsArray);
+    } catch (error: any) {
+      logger.error({ err: error, instance }, 'Error fetching all groups');
+      return res.status(500).json({ error: error.message });
+    }
+  }
 }
 
 export const instanceController = new InstanceController();

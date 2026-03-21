@@ -60,6 +60,7 @@ router.post('/instance/qr/:instance', instanceController.connect);
 router.post('/chat/downloadMedia/:instance', instanceController.downloadMedia);
 router.post('/chat/getBase64/:instance', instanceController.downloadMedia);
 router.post('/chat/getBase64FromMediaMessage/:instance', instanceController.downloadMedia);
+router.post('/chat/fetchAllGroups/:instance', instanceController.fetchAllGroups);
 router.post('/message/sendSticker/:instance', messageController.sendSticker);
 router.post('/message/sendMedia/:instance', (req, res) => {
   const mediaType = req.body.mediaType || req.body.mediatype || 'image';

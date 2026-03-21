@@ -168,6 +168,9 @@ class InstanceService {
                 const metadata = await socket.groupMetadata(jid);
                 if (metadata?.subject) {
                   groupNameCache.set(jid, metadata.subject);
+                  (msg as any).groupName = metadata.subject;
+                  (msg as any).subject = metadata.subject;
+                  // Keep top-level for compatibility
                   (message as any).groupName = metadata.subject;
                   (message as any).subject = metadata.subject;
                 }

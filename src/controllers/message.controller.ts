@@ -77,7 +77,7 @@ export class MessageController {
     });
   }
 
-  async sendMedia(req: Request, res: Response, type: 'image' | 'audio' | 'video' | 'document') {
+  async sendMedia(req: Request, res: Response, type: 'image' | 'audio' | 'video' | 'document' | 'sticker') {
     const instance = (req.params.instance || req.body.instance || req.body.instanceKey) as string;
     const body = req.body ?? {};
     const mediaMessage = body.mediaMessage || {};
@@ -89,7 +89,7 @@ export class MessageController {
     const ptt = body.ptt || mediaMessage.ptt || false;
 
     // Override type if mediatype is specified in payload
-    const finalType = (body.mediaType || mediaMessage.mediatype || type) as 'image' | 'audio' | 'video' | 'document';
+    const finalType = (body.mediaType || mediaMessage.mediatype || type) as 'image' | 'audio' | 'video' | 'document' | 'sticker';
 
     if (!instance || !number || !media) {
       return res.status(400).json(
@@ -126,10 +126,14 @@ export class MessageController {
     const buffer = fs.readFileSync(filePath);
 
     if (finalType === 'image') mediaContent.image = buffer;
-    else if (finalType === 'audio') {
+    else if (finalType === 'sticker') {
+        mediaContent.sticker = buffer;
+        mediaContent.mimetype = 'image/webp';
+    } else if (finalType === 'audio') {
       mediaContent.audio = buffer;
-      mediaContent.ptt = ptt === true || ptt === 'true';
-      mediaContent.mimetype = 'audio/mp4'; // Essential for WhatsApp compatibility
+      const isPtt = ptt === true || ptt === 'true';
+      mediaContent.ptt = isPtt;
+      mediaContent.mimetype = isPtt ? 'audio/ogg; codecs=opus' : 'audio/mp4'; 
     } else if (finalType === 'video') mediaContent.video = buffer;
     else if (finalType === 'document') {
       mediaContent.document = buffer;
@@ -156,6 +160,7 @@ export class MessageController {
   }
 
   async sendImage(req: Request, res: Response) { return this.sendMedia(req, res, 'image'); }
+  async sendSticker(req: Request, res: Response) { return this.sendMedia(req, res, 'sticker'); }
   async sendAudio(req: Request, res: Response) { return this.sendMedia(req, res, 'audio'); }
   async sendVideo(req: Request, res: Response) { return this.sendMedia(req, res, 'video'); }
   async sendDocument(req: Request, res: Response) { return this.sendMedia(req, res, 'document'); }

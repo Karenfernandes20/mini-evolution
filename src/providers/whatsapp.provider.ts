@@ -149,7 +149,7 @@ export class WhatsAppProvider extends EventEmitter {
           if (!msg.message) continue;
           
           const messageType = Object.keys(msg.message)[0];
-          const isMedia = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage'].includes(messageType);
+          const isMedia = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage'].includes(messageType);
           
           if (isMedia) {
               try {
@@ -206,10 +206,28 @@ export class WhatsAppProvider extends EventEmitter {
     const mimetype = msg?.mimetype || '';
     if (mimetype.includes('image/jpeg')) return 'jpg';
     if (mimetype.includes('image/png')) return 'png';
+    if (mimetype.includes('image/webp')) return 'webp';
     if (mimetype.includes('video/mp4')) return 'mp4';
-    if (mimetype.includes('audio/ogg')) return 'ogg';
+    if (mimetype.includes('audio/ogg') || mimetype.includes('opus')) return 'ogg';
+    if (mimetype.includes('audio/mp4') || mimetype.includes('audio/m4a')) return 'm4a';
+    if (mimetype.includes('audio/mpeg')) return 'mp3';
+    if (mimetype.includes('audio/aac')) return 'aac';
+    if (mimetype.includes('audio/wav')) return 'wav';
     if (mimetype.includes('application/pdf')) return 'pdf';
     return 'bin';
+  }
+
+  private toBuffer(val: any): Buffer {
+    if (Buffer.isBuffer(val)) return val;
+    if (Array.isArray(val)) return Buffer.from(val);
+    if (typeof val === 'string') {
+      if (val.startsWith('data:')) {
+        const parts = val.split(';base64,');
+        return Buffer.from(parts[1] || '', 'base64');
+      }
+      return Buffer.from(val, 'base64');
+    }
+    return val;
   }
 
   getSocket() {

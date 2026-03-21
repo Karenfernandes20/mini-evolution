@@ -73,6 +73,20 @@ class InstanceService {
     return this.createInstance(key, name, token, webhookUrl);
   }
 
+  async setWebhook(key: string, url: string) {
+    const normalizedKey = key.toLowerCase();
+    const instance = await this.getInstance(normalizedKey);
+    if (!instance) {
+      throw new Error(`Instance ${normalizedKey} not found`);
+    }
+
+    instance.webhookUrl = url;
+    instance.updatedAt = new Date();
+    this.saveToCache();
+    logger.info({ instance: normalizedKey, url }, 'Instance webhook updated');
+    return instance;
+  }
+
   async createInstance(key: string, name?: string, token?: string, webhookUrl?: string) {
     const normalizedKey = key.toLowerCase();
     const existingInstance = await this.getInstance(normalizedKey);

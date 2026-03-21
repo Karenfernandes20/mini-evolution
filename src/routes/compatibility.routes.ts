@@ -60,6 +60,11 @@ router.post('/instance/qr/:instance', instanceController.connect);
 router.post('/chat/downloadMedia/:instance', instanceController.downloadMedia);
 router.post('/chat/getBase64/:instance', instanceController.downloadMedia);
 router.post('/chat/getBase64FromMediaMessage/:instance', instanceController.downloadMedia);
+router.post('/message/sendSticker/:instance', messageController.sendSticker);
+router.post('/message/sendMedia/:instance', (req, res) => {
+  const mediaType = req.body.mediaType || req.body.mediatype || 'image';
+  return messageController.sendMedia(req, res, mediaType as any);
+});
 
 router.post('/chat/fetchProfilePictureUrl/:instance', (req, res) => {
   return instanceController.fetchProfilePictureUrl(req, res);

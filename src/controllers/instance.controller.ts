@@ -11,6 +11,18 @@ const toBuffer = (val: any) => {
     return Buffer.from(val.data);
   }
   if (Array.isArray(val)) return Buffer.from(val);
+  if (typeof val === 'string') {
+    if (val.startsWith('data:')) {
+      const parts = val.split(';base64,');
+      return Buffer.from(parts[1] || '', 'base64');
+    }
+    // Handle raw base64 or other string representations
+    try {
+      return Buffer.from(val, 'base64');
+    } catch {
+      return Buffer.from(val);
+    }
+  }
   return val;
 };
 
@@ -251,10 +263,10 @@ export class InstanceController {
       const message: any = {
         message: {
           [messageKey]: {
-            mediaKey: toBuffer(mediaKey),
+            mediaKey: Buffer.from(mediaKey, 'base64'),
             directPath,
             mimetype,
-            fileSha256: toBuffer(fileSha256),
+            fileSha256: Buffer.from(fileSha256, 'base64'),
           },
         },
       };

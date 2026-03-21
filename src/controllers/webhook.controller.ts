@@ -31,6 +31,46 @@ export class WebhookController {
       data: { url },
     });
   }
+
+  async setInstance(req: Request, res: Response) {
+    const { instance } = req.params as { instance: string };
+    const { url, webhook } = req.body ?? {};
+    const targetUrl = url || webhook?.url;
+
+    if (!targetUrl) {
+      return res.status(400).json(
+        buildApiResponse({
+          success: false,
+          status: 'ERROR',
+          instance,
+          message: 'URL is required',
+        }),
+      );
+    }
+
+    try {
+      const { instanceService } = await import('../services/instance.service.js');
+      await instanceService.setWebhook(instance, targetUrl);
+
+      return res.json(
+        buildApiResponse({
+          success: true,
+          status: 'CONNECTED',
+          instance,
+          message: 'Instance webhook updated successfully',
+        }),
+      );
+    } catch (error: any) {
+      return res.status(404).json(
+        buildApiResponse({
+          success: false,
+          status: 'ERROR',
+          instance,
+          message: error.message,
+        }),
+      );
+    }
+  }
 }
 
 export const webhookController = new WebhookController();

@@ -3,12 +3,14 @@ import express from 'express';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { Readable } from 'stream';
 import axios from 'axios';
 import makeWASocket, {
     useMultiFileAuthState,
     fetchLatestBaileysVersion,
     DisconnectReason,
-    Browsers
+    Browsers,
+    downloadContentFromMessage
 } from '@whiskeysockets/baileys';
 import qrcode from 'qrcode-terminal';
 import pino from 'pino';
@@ -20,6 +22,17 @@ const __dirname = path.dirname(__filename);
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
+// --- MEDIA UPLOADS ---
+const MEDIA_DIR = path.resolve(__dirname, 'media');
+if (!fs.existsSync(MEDIA_DIR)) fs.mkdirSync(MEDIA_DIR, { recursive: true });
+app.use('/media', express.static(MEDIA_DIR, {
+    setHeaders(res) {
+        res.setHeader('Access-Control-Allow-Origin', '*');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        res.setHeader('Accept-Ranges', 'bytes');
+    }
+}));
 
 // --- CAPTURA DE LOGS ---
 const logLines = [];
@@ -173,12 +186,38 @@ async function startInstance(instKey) {
                 }
             }
 
+            // --- PROACTIVE MEDIA DOWNLOAD ---
+            let mediaLocalUrl = null;
+            try {
+                const m = message.message || {};
+                const mediaObj = m.imageMessage || m.videoMessage || m.audioMessage || m.documentMessage || m.stickerMessage;
+                if (mediaObj) {
+                    let mediaType = 'image';
+                    if (m.audioMessage) mediaType = 'audio';
+                    else if (m.videoMessage) mediaType = 'video';
+                    else if (m.documentMessage) mediaType = 'document';
+                    else if (m.stickerMessage) mediaType = 'sticker';
+
+                    console.log(`[Mini-Evo] Downloading ${mediaType} media for message ${message.key.id}...`);
+                    const localPath = await downloadAndSaveMedia(mediaObj, mediaType, message.key.id);
+                    if (localPath) {
+                        // Build public URL relative to mini-evolution server
+                        const selfUrl = (process.env.SELF_URL || `http://127.0.0.1:${process.env.PORT || 3001}`).replace(/\/$/, '');
+                        mediaLocalUrl = `${selfUrl}/media/${path.basename(localPath)}`;
+                        console.log(`[Mini-Evo] ✅ Media saved: ${mediaLocalUrl}`);
+                    }
+                }
+            } catch (mediaErr) {
+                console.error(`[Mini-Evo] ⚠ Media download failed:`, mediaErr.message);
+            }
+
             axios.post(`${WEBHOOK_URL_BASE}/${instKey}`, {
                 event: "messages.upsert",
                 instance: instKey,
                 data: {
                     messages: [message],
-                    groupName: groupName // Mandar o nome do grupo para o Integrai
+                    groupName: groupName,
+                    mediaUrl: mediaLocalUrl // Send downloaded media URL to Integrai
                 }
             })
                 .then(() => console.log(`[Mini-Evo] Webhook messages.upsert enviado para ${instKey}`))
@@ -589,6 +628,175 @@ app.get('/group/findGroup/:instanceKey', authorizeIntegrai, async (req, res) => 
     }
 });
 
+
+// === MEDIA DOWNLOAD HELPER FUNCTION ===
+async function downloadAndSaveMedia(mediaObj, mediaType, messageId) {
+    try {
+        const stream = await downloadContentFromMessage(mediaObj, mediaType);
+        const chunks = [];
+        for await (const chunk of stream) {
+            chunks.push(chunk);
+        }
+        const buffer = Buffer.concat(chunks);
+
+        if (buffer.length < 100) {
+            console.warn(`[MediaDL] Buffer too small (${buffer.length} bytes), possibly failed`);
+            return null;
+        }
+
+        // Determine file extension from mimetype
+        const mimetype = mediaObj.mimetype || 'application/octet-stream';
+        let ext = 'bin';
+        if (mimetype.includes('image/jpeg') || mimetype.includes('image/jpg')) ext = 'jpg';
+        else if (mimetype.includes('image/png')) ext = 'png';
+        else if (mimetype.includes('image/webp')) ext = 'webp';
+        else if (mimetype.includes('audio/ogg')) ext = 'ogg';
+        else if (mimetype.includes('audio/mp4') || mimetype.includes('audio/m4a')) ext = 'm4a';
+        else if (mimetype.includes('audio/mpeg')) ext = 'mp3';
+        else if (mimetype.includes('video/mp4')) ext = 'mp4';
+        else if (mimetype.includes('application/pdf')) ext = 'pdf';
+        else if (mimetype.includes('audio/')) ext = 'ogg'; // Default audio to ogg
+        else {
+            const parts = mimetype.split('/');
+            if (parts[1]) ext = parts[1].split(';')[0];
+        }
+
+        const filename = `${Date.now()}-${messageId || Math.random().toString(36).slice(2)}.${ext}`;
+        const filePath = path.join(MEDIA_DIR, filename);
+        fs.writeFileSync(filePath, buffer);
+
+        console.log(`[MediaDL] Saved ${mediaType} (${buffer.length} bytes) -> ${filename}`);
+        return filePath;
+    } catch (err) {
+        console.error(`[MediaDL] Error:`, err.message);
+        return null;
+    }
+}
+
+// === MEDIA DOWNLOAD API ENDPOINT (for Integrai to call on-demand) ===
+app.post('/chat/downloadMedia/:instanceKey', authorizeIntegrai, async (req, res) => {
+    try {
+        const instKey = req.params.instanceKey.toLowerCase();
+        const { mediaKey, directPath, mediaType, mimetype, fileSha256 } = req.body;
+
+        if (!mediaKey && !directPath) {
+            return res.status(400).json({ error: 'mediaKey or directPath required' });
+        }
+
+        console.log(`[DownloadMedia API] Request for instance ${instKey}, type: ${mediaType}`);
+
+        const mediaObj = { mediaKey, directPath, mimetype, url: undefined };
+        const stream = await downloadContentFromMessage(mediaObj, mediaType || 'image');
+        const chunks = [];
+        for await (const chunk of stream) {
+            chunks.push(chunk);
+        }
+        const buffer = Buffer.concat(chunks);
+
+        if (buffer.length < 100) {
+            return res.status(404).json({ error: 'Media content too small or unavailable' });
+        }
+
+        // Save to disk
+        let ext = 'bin';
+        if (mimetype) {
+            if (mimetype.includes('image/jpeg')) ext = 'jpg';
+            else if (mimetype.includes('image/png')) ext = 'png';
+            else if (mimetype.includes('image/webp')) ext = 'webp';
+            else if (mimetype.includes('audio/ogg')) ext = 'ogg';
+            else if (mimetype.includes('audio/mp4')) ext = 'm4a';
+            else if (mimetype.includes('audio/mpeg')) ext = 'mp3';
+            else if (mimetype.includes('video/mp4')) ext = 'mp4';
+            else {
+                const parts = mimetype.split('/');
+                if (parts[1]) ext = parts[1].split(';')[0];
+            }
+        }
+
+        const filename = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const filePath = path.join(MEDIA_DIR, filename);
+        fs.writeFileSync(filePath, buffer);
+
+        const base64 = buffer.toString('base64');
+        console.log(`[DownloadMedia API] ✅ Success: ${filename} (${buffer.length} bytes)`);
+
+        return res.json({
+            base64,
+            mimetype: mimetype || 'application/octet-stream',
+            fileName: filename,
+            fileSize: buffer.length
+        });
+    } catch (err) {
+        console.error(`[DownloadMedia API] Error:`, err.message);
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// === GET BASE64 FROM MEDIA MESSAGE (Evolution API compatible) ===
+app.post('/chat/getBase64FromMediaMessage/:instanceKey', authorizeIntegrai, async (req, res) => {
+    try {
+        const instKey = req.params.instanceKey.toLowerCase();
+        const { message } = req.body;
+
+        if (!message?.key) {
+            return res.status(400).json({ error: 'message.key required' });
+        }
+
+        const inst = await ensureInstanceStarted(instKey);
+        if (!inst?.sock) {
+            return res.status(500).json({ error: 'Instance not connected' });
+        }
+
+        // Try to find the message in the store or download from metadata
+        const { mediaKey, directPath, mimetype } = req.body;
+        if (mediaKey && directPath) {
+            const mediaObj = { mediaKey, directPath, mimetype, url: undefined };
+            
+            // Determine media type from message_type or mimetype
+            let mediaType = req.body.mediaType || 'image';
+            if (mimetype?.includes('audio')) mediaType = 'audio';
+            else if (mimetype?.includes('video')) mediaType = 'video';
+            else if (mimetype?.includes('image') || mimetype?.includes('webp')) mediaType = 'image';
+            
+            const stream = await downloadContentFromMessage(mediaObj, mediaType);
+            const chunks = [];
+            for await (const chunk of stream) {
+                chunks.push(chunk);
+            }
+            const buffer = Buffer.concat(chunks);
+            const base64 = buffer.toString('base64');
+
+            return res.json({ base64, mimetype: mimetype || 'application/octet-stream' });
+        }
+
+        return res.status(400).json({ error: 'mediaKey and directPath required for download' });
+    } catch (err) {
+        console.error(`[GetBase64] Error:`, err.message);
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+// === MEDIA CLEANUP: Delete files older than 7 days ===
+setInterval(() => {
+    try {
+        const files = fs.readdirSync(MEDIA_DIR);
+        const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+        let cleaned = 0;
+        for (const file of files) {
+            const filePath = path.join(MEDIA_DIR, file);
+            const stat = fs.statSync(filePath);
+            if (Date.now() - stat.mtimeMs > sevenDaysMs) {
+                fs.unlinkSync(filePath);
+                cleaned++;
+            }
+        }
+        if (cleaned > 0) {
+            console.log(`[MediaCleanup] Removed ${cleaned} old media files`);
+        }
+    } catch (e) {
+        console.error('[MediaCleanup] Error:', e.message);
+    }
+}, 6 * 60 * 60 * 1000); // Every 6 hours
 
 // REMOVED: Auto-start all on boot. Now we only start on demand.
 

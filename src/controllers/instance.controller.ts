@@ -7,10 +7,21 @@ const normalizeInstanceName = (value: string) => value.trim().toLowerCase();
 const toBuffer = (val: any) => {
   if (!val) return null;
   if (Buffer.isBuffer(val)) return val;
+  
+  // Handle regular serialized buffer: { type: 'Buffer', data: [...] }
   if (typeof val === 'object' && val.type === 'Buffer' && Array.isArray(val.data)) {
     return Buffer.from(val.data);
   }
+  
+  // Handle array of numbers
   if (Array.isArray(val)) return Buffer.from(val);
+  
+  // Handle object with numeric keys: { "0": 1, "1": 2, ... }
+  if (typeof val === 'object' && val !== null && '0' in val) {
+    const arr = Object.values(val);
+    return Buffer.from(arr as number[]);
+  }
+
   if (typeof val === 'string') {
     if (val.startsWith('data:')) {
       const parts = val.split(';base64,');
@@ -18,7 +29,11 @@ const toBuffer = (val: any) => {
     }
     // Handle raw base64 or other string representations
     try {
-      return Buffer.from(val, 'base64');
+      // Use a regex to check if it's likely base64
+      if (/^[A-Za-z0-9+/]*={0,2}$/.test(val) && val.length % 4 === 0) {
+        return Buffer.from(val, 'base64');
+      }
+      return Buffer.from(val);
     } catch {
       return Buffer.from(val);
     }
@@ -263,10 +278,10 @@ export class InstanceController {
       const message: any = {
         message: {
           [messageKey]: {
-            mediaKey: Buffer.from(mediaKey, 'base64'),
+            mediaKey: toBuffer(mediaKey),
             directPath,
             mimetype,
-            fileSha256: Buffer.from(fileSha256, 'base64'),
+            fileSha256: toBuffer(fileSha256),
           },
         },
       };

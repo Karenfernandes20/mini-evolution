@@ -146,36 +146,43 @@ export class WhatsAppProvider extends EventEmitter {
       
       // Automatic Media Download
       for (const msg of m.messages) {
-          if (!msg.message) continue;
+          if (!msg.message || msg.key.fromMe) continue;
           
           const messageType = Object.keys(msg.message)[0];
           const isMedia = ['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage'].includes(messageType);
           
           if (isMedia) {
+              const mediaObj = (msg.message as any)[messageType];
               try {
                   const { downloadMediaMessage } = await import('@whiskeysockets/baileys');
-                  const messageContent = msg.message as any;
                   const buffer = await downloadMediaMessage(msg, 'buffer', {});
                   
                   // Save media locally via mediaService
-                  const fileName = `${msg.key.id}.${this.getExtFromMsg(messageContent[messageType])}`;
-                  const filePath = await (await import('../services/media.service.js')).mediaService.saveBase64(buffer.toString('base64'), fileName);
+                  const ext = this.getExtFromMsg(mediaObj);
+                  const fileName = `${msg.key.id}.${ext}`;
+                  const fullPath = await (await import('../services/media.service.js')).mediaService.saveBase64(buffer.toString('base64'), fileName);
                   
+                  // Resolve public URL for the dispatch
+                  const publicUrl = `${process.env.APP_URL || ''}/media/${path.basename(fullPath)}`;
+                  
+                  logger.info({ instance: this.instanceKey, msgId: msg.key.id, publicUrl }, '✅ Media downloaded and saved locally');
+
                   this.emit('message.media.received', {
                       message: msg,
-                      filePath,
+                      filePath: fullPath,
+                      publicUrl,
                       messageType
                   });
 
-                  await (await import('../services/webhook.service.js')).webhookService.dispatch(this.instanceKey, 'message.media.received', {
-                      from: msg.key.remoteJid,
-                      pushName: msg.pushName,
-                      messageType,
-                      filePath,
-                      timestamp: msg.messageTimestamp
+                  await (await import('../services/webhook.service.js')).webhookService.dispatch(this.instanceKey, 'messages.upsert', {
+                      messages: [msg],
+                      mediaUrl: publicUrl,
+                      // Pass some metadata for convenience
+                      mimetype: mediaObj.mimetype,
+                      fileName: mediaObj.fileName || fileName
                   });
               } catch (e) {
-                  logger.error(e, `Error downloading media for ${this.instanceKey}`);
+                  logger.error({ err: (e as any).message, instance: this.instanceKey, msgId: msg.key.id }, '❌ Error downloading media');
               }
           }
       }
@@ -214,6 +221,7 @@ export class WhatsAppProvider extends EventEmitter {
     if (mimetype.includes('audio/aac')) return 'aac';
     if (mimetype.includes('audio/wav')) return 'wav';
     if (mimetype.includes('application/pdf')) return 'pdf';
+    // Fallback based on message content if no mimetype
     return 'bin';
   }
 

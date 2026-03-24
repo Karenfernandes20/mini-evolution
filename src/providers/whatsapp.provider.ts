@@ -11,6 +11,7 @@ import fs from 'fs';
 import { EventEmitter } from 'events';
 import logger from '../utils/logger.js';
 import { fileURLToPath } from 'url';
+import { env } from '../config/env.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -142,9 +143,7 @@ export class WhatsAppProvider extends EventEmitter {
     });
 
     this.socket.ev.on('messages.upsert', async (m) => {
-      this.emit('messages.upsert', m);
-      
-      // Automatic Media Download
+      // Automatic Media Download (before emitting, so webhooks can consume mediaUrl)
       for (const msg of m.messages) {
           if (!msg.message || msg.key.fromMe) continue;
           
@@ -157,26 +156,25 @@ export class WhatsAppProvider extends EventEmitter {
                   const { downloadMediaMessage } = await import('@whiskeysockets/baileys');
                   const buffer = await downloadMediaMessage(msg, 'buffer', {});
                   
-                  // Save media locally via mediaService
                   const ext = this.getExtFromMsg(mediaObj);
                   const fileName = `${msg.key.id}.${ext}`;
-                  const fullPath = await (await import('../services/media.service.js')).mediaService.saveBase64(buffer.toString('base64'), fileName);
+                  const filePath = await (await import('../services/media.service.js')).mediaService.saveBase64(buffer.toString('base64'), fileName);
+                  const mediaUrl = this.buildPublicMediaUrl(filePath);
+
+                  (msg as any).mediaUrl = mediaUrl;
                   
-                  // Resolve public URL for the dispatch
-                  const publicUrl = `${process.env.APP_URL || ''}/media/${path.basename(fullPath)}`;
-                  
-                  logger.info({ instance: this.instanceKey, msgId: msg.key.id, publicUrl }, '✅ Media downloaded and saved locally');
+                  logger.info({ instance: this.instanceKey, msgId: msg.key.id, mediaUrl }, '✅ Media downloaded and saved locally');
 
                   this.emit('message.media.received', {
                       message: msg,
-                      filePath: fullPath,
-                      publicUrl,
+                      filePath,
+                      mediaUrl,
                       messageType
                   });
 
                   await (await import('../services/webhook.service.js')).webhookService.dispatch(this.instanceKey, 'messages.upsert', {
                       messages: [msg],
-                      mediaUrl: publicUrl,
+                      mediaUrl,
                       // Pass some metadata for convenience
                       mimetype: mediaObj.mimetype,
                       fileName: mediaObj.fileName || fileName
@@ -186,6 +184,8 @@ export class WhatsAppProvider extends EventEmitter {
               }
           }
       }
+
+      this.emit('messages.upsert', m);
     });
 
     this.socket.ev.on('messages.update', (m) => {
@@ -240,6 +240,11 @@ export class WhatsAppProvider extends EventEmitter {
 
   getSocket() {
       return this.socket;
+  }
+
+  private buildPublicMediaUrl(filePath: string): string {
+    const baseUrl = (env.SELF_URL || `http://127.0.0.1:${env.PORT || '3000'}`).replace(/\/$/, '');
+    return `${baseUrl}/media/${path.basename(filePath)}`;
   }
 
   getContacts() {

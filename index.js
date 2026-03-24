@@ -23,6 +23,31 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// --- HELPERS ---
+const toBuffer = (val) => {
+    if (!val) return null;
+    if (Buffer.isBuffer(val)) return val;
+    if (typeof val === 'object' && val !== null && '0' in val) {
+        const arr = Object.values(val);
+        return Buffer.from(arr);
+    }
+    if (typeof val === 'string') {
+        if (val.startsWith('data:')) {
+            const parts = val.split(';base64,');
+            return Buffer.from(parts[1] || '', 'base64');
+        }
+        try {
+            if (/^[A-Za-z0-9+/]*={0,2}$/.test(val) && val.length % 4 === 0) {
+                return Buffer.from(val, 'base64');
+            }
+            return Buffer.from(val);
+        } catch {
+            return Buffer.from(val);
+        }
+    }
+    return val;
+};
+
 // --- MEDIA UPLOADS ---
 const MEDIA_DIR = path.resolve(__dirname, 'media');
 if (!fs.existsSync(MEDIA_DIR)) fs.mkdirSync(MEDIA_DIR, { recursive: true });
@@ -687,7 +712,13 @@ app.post('/chat/downloadMedia/:instanceKey', authorizeIntegrai, async (req, res)
 
         console.log(`[DownloadMedia API] Request for instance ${instKey}, type: ${mediaType}`);
 
-        const mediaObj = { mediaKey, directPath, mimetype, url: undefined };
+        const mediaObj = { 
+            mediaKey: toBuffer(mediaKey), 
+            directPath, 
+            mimetype, 
+            fileSha256: toBuffer(fileSha256),
+            url: undefined 
+        };
         const stream = await downloadContentFromMessage(mediaObj, mediaType || 'image');
         const chunks = [];
         for await (const chunk of stream) {
@@ -752,7 +783,12 @@ app.post('/chat/getBase64FromMediaMessage/:instanceKey', authorizeIntegrai, asyn
         // Try to find the message in the store or download from metadata
         const { mediaKey, directPath, mimetype } = req.body;
         if (mediaKey && directPath) {
-            const mediaObj = { mediaKey, directPath, mimetype, url: undefined };
+            const mediaObj = { 
+                mediaKey: toBuffer(mediaKey), 
+                directPath, 
+                mimetype, 
+                url: undefined 
+            };
             
             // Determine media type from message_type or mimetype
             let mediaType = req.body.mediaType || 'image';

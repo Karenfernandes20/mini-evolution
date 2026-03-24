@@ -182,6 +182,11 @@ class InstanceService {
         }
       }
 
+      const firstMediaUrl = (message.messages || []).find((msg: any) => !!msg?.mediaUrl)?.mediaUrl;
+      if (firstMediaUrl) {
+        (message as any).mediaUrl = firstMediaUrl;
+      }
+
       const { webhookService } = await import('./webhook.service.js');
       await webhookService.dispatch(normalizedKey, 'messages.upsert', message);
     });

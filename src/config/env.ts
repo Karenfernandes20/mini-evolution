@@ -14,6 +14,7 @@ const envSchema = z.object({
   REDIS_URL: z.string().default('redis://localhost:6379'),
   GLOBAL_API_KEY: z.string().default('minievo-secret-key'),
   WEBHOOK_URL_BASE: z.string().optional(),
+  SELF_URL: z.string().optional(),
   INSTANCE_TOKEN_PREFIX: z.string().default('me_'),
   ADMIN_EMAIL: z.string().default('integraiempresa01@gmail.com'),
   ADMIN_PASS: z.string().default('Integr1234'),

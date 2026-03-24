@@ -11,6 +11,7 @@ import fs from 'fs';
 import { EventEmitter } from 'events';
 import logger from '../utils/logger.js';
 import { fileURLToPath } from 'url';
+import { env } from '../config/env.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -160,10 +161,14 @@ export class WhatsAppProvider extends EventEmitter {
                   // Save media locally via mediaService
                   const fileName = `${msg.key.id}.${this.getExtFromMsg(messageContent[messageType])}`;
                   const filePath = await (await import('../services/media.service.js')).mediaService.saveBase64(buffer.toString('base64'), fileName);
+                  const mediaUrl = this.buildPublicMediaUrl(filePath);
+
+                  (msg as any).mediaUrl = mediaUrl;
                   
                   this.emit('message.media.received', {
                       message: msg,
                       filePath,
+                      mediaUrl,
                       messageType
                   });
 
@@ -172,6 +177,7 @@ export class WhatsAppProvider extends EventEmitter {
                       pushName: msg.pushName,
                       messageType,
                       filePath,
+                      mediaUrl,
                       timestamp: msg.messageTimestamp
                   });
               } catch (e) {
@@ -232,6 +238,11 @@ export class WhatsAppProvider extends EventEmitter {
 
   getSocket() {
       return this.socket;
+  }
+
+  private buildPublicMediaUrl(filePath: string): string {
+    const baseUrl = (env.SELF_URL || `http://127.0.0.1:${env.PORT || '3000'}`).replace(/\/$/, '');
+    return `${baseUrl}/media/${path.basename(filePath)}`;
   }
 
   getContacts() {

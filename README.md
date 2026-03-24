@@ -20,6 +20,7 @@ O sistema foi completamente refatorado utilizando **TypeScript** e padrões mode
    ```
 
 2. Configure o seu arquivo `.env` (use o `.env.example` como base).
+   > Para que imagens/áudios recebidos sejam exibidos no Integrai, configure `SELF_URL` com a URL pública da sua Mini-Evolution (ex.: `https://mini-evo.seudominio.com`).
 
 3. Inicie em modo de desenvolvimento:
    ```bash

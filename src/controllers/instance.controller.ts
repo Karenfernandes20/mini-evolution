@@ -360,9 +360,6 @@ export class InstanceController {
         statusCode === 401 ||
         message.includes('not-authorized') ||
         payloadMessage.includes('not-authorized');
-      const statusCode = error?.output?.statusCode ?? error?.data;
-      const message = error?.message ?? 'Unknown error';
-      const isNotAuthorized = statusCode === 401 || message === 'not-authorized';
       const isNotFound = statusCode === 404;
 
       if (isNotAuthorized || isNotFound) {

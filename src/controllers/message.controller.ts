@@ -18,11 +18,21 @@ const getStringValue = (...candidates: unknown[]) => {
 };
 
 const normalizeNumberToJid = (number: string) => {
-  if (number.includes('@')) {
-    return number;
+  const normalized = number.trim().toLowerCase();
+
+  if (normalized.endsWith('@c.us')) {
+    return normalized.replace('@c.us', '@s.whatsapp.net');
   }
 
-  const digitsOnly = number.replace(/\D/g, '');
+  if (normalized.endsWith('@s.whatsapp.net') || normalized.endsWith('@g.us')) {
+    return normalized;
+  }
+
+  if (normalized.includes('@')) {
+    return normalized;
+  }
+
+  const digitsOnly = normalized.replace(/\D/g, '');
   return `${digitsOnly}@s.whatsapp.net`;
 };
 

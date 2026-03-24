@@ -347,6 +347,19 @@ export class InstanceController {
         success: true
       });
     } catch (error: any) {
+      const extractedStatusCode = Number(
+        error?.output?.statusCode ??
+        error?.output?.payload?.statusCode ??
+        error?.data?.statusCode ??
+        error?.data,
+      );
+      const statusCode = Number.isNaN(extractedStatusCode) ? undefined : extractedStatusCode;
+      const message = String(error?.message ?? error?.output?.payload?.message ?? 'Unknown error');
+      const payloadMessage = String(error?.output?.payload?.message ?? '');
+      const isNotAuthorized =
+        statusCode === 401 ||
+        message.includes('not-authorized') ||
+        payloadMessage.includes('not-authorized');
       const statusCode = error?.output?.statusCode ?? error?.data;
       const message = error?.message ?? 'Unknown error';
       const isNotAuthorized = statusCode === 401 || message === 'not-authorized';

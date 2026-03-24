@@ -347,11 +347,28 @@ export class InstanceController {
         success: true
       });
     } catch (error: any) {
-      logger.error({ err: error, instance, number }, 'Error fetching profile picture');
-      return res.status(404).json({ 
-        error: 'Profile picture not found',
-        message: error.message,
-        success: false
+      const statusCode = error?.output?.statusCode ?? error?.data;
+      const message = error?.message ?? 'Unknown error';
+      const isNotAuthorized = statusCode === 401 || message === 'not-authorized';
+      const isNotFound = statusCode === 404;
+
+      if (isNotAuthorized || isNotFound) {
+        logger.warn(
+          { err: error, instance, number, statusCode, isNotAuthorized, isNotFound },
+          'Profile picture unavailable for contact; returning null URL',
+        );
+
+        return res.json({
+          profilePictureUrl: null,
+          success: true,
+        });
+      }
+
+      logger.error({ err: error, instance, number, statusCode }, 'Error fetching profile picture');
+      return res.status(500).json({
+        error: 'Failed to fetch profile picture',
+        message,
+        success: false,
       });
     }
   }

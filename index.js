@@ -385,7 +385,9 @@ function authorizeIntegrai(req, res, next) {
         return res.status(404).json({ error: "Instância não encontrada no sistema" });
     }
 
-    if (instData.token !== token) {
+    const globalKey = process.env.GLOBAL_API_KEY || process.env.API_KEY;
+
+    if (instData.token !== token && token !== globalKey) {
         console.warn(`[Auth] Token mismatch for instance ${instKey}. Expected: ${instData.token.substring(0, 8)}..., Received: ${token.substring(0, 8)}...`);
         return res.status(403).json({ error: "Acesso negado: Token inválido para esta instância" });
     }

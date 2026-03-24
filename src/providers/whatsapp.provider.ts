@@ -143,9 +143,7 @@ export class WhatsAppProvider extends EventEmitter {
     });
 
     this.socket.ev.on('messages.upsert', async (m) => {
-      this.emit('messages.upsert', m);
-      
-      // Automatic Media Download
+      // Automatic Media Download (before emitting, so webhooks can consume mediaUrl)
       for (const msg of m.messages) {
           if (!msg.message) continue;
           
@@ -185,6 +183,8 @@ export class WhatsAppProvider extends EventEmitter {
               }
           }
       }
+
+      this.emit('messages.upsert', m);
     });
 
     this.socket.ev.on('messages.update', (m) => {

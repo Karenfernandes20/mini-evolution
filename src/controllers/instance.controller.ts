@@ -244,9 +244,9 @@ export class InstanceController {
 
   async downloadMedia(req: Request, res: Response) {
     const instance = (req.params.instance || req.body.instanceKey || req.body.instanceName || req.body.instance || '').toString().toLowerCase();
-    const { mediaKey, directPath, mediaType, mimetype, fileSha256 } = req.body;
+    const { mediaKey, directPath, url, mediaType, mimetype, fileSha256, fileEncSha256, message: reqMessage } = req.body;
 
-    if (!instance || !mediaKey || !directPath || !mediaType) {
+    if (!instance || !mediaType) {
       return res.status(400).json(
         buildApiResponse({
           success: false,
@@ -270,24 +270,61 @@ export class InstanceController {
 
     try {
       const { downloadMediaMessage } = await import('@whiskeysockets/baileys');
-      
-      // Determine the correct message top-level key
-      const messageKey = mediaType.endsWith('Message') ? mediaType : `${mediaType}Message`;
+      let downloadedBuffer: Buffer | undefined;
 
-      // Construct a pseudo-message object as expected by Baileys downloadMediaMessage
-      const message: any = {
-        message: {
-          [messageKey]: {
-            mediaKey: toBuffer(mediaKey),
-            directPath,
-            mimetype,
-            fileSha256: toBuffer(fileSha256),
-          },
-        },
+      // Ensure buffers inside message are correctly typed
+      const processBuffers = (obj: any) => {
+        if (!obj || typeof obj !== 'object') return obj;
+        
+        // Deep clone safely
+        const cloned = JSON.parse(JSON.stringify(obj));
+        
+        const convertFields = (node: any) => {
+          if (!node || typeof node !== 'object') return;
+          for (const k of ['mediaKey', 'fileSha256', 'fileEncSha256']) {
+            if (node[k]) {
+              node[k] = toBuffer(node[k]);
+            }
+          }
+          Object.values(node).forEach(v => {
+            if (typeof v === 'object') convertFields(v);
+          });
+        };
+        convertFields(cloned);
+        return cloned;
       };
 
-      const buffer = await downloadMediaMessage(message, 'buffer', {});
-      const base64 = buffer.toString('base64');
+      if (reqMessage && reqMessage.message) {
+         try {
+           const processedMessage = processBuffers(reqMessage);
+           downloadedBuffer = await downloadMediaMessage(processedMessage, 'buffer', {}) as Buffer;
+         } catch (err: any) {
+           logger.warn({ err: err.message, instance }, 'Failed to download using full message object, falling back to pseudo message');
+         }
+      }
+
+      if (!downloadedBuffer) {
+        // Determine the correct message top-level key
+        const messageKey = mediaType.endsWith('Message') ? mediaType : `${mediaType}Message`;
+
+        // Construct a pseudo-message object as expected by Baileys downloadMediaMessage
+        const message: any = {
+          message: {
+            [messageKey]: {
+              mediaKey: toBuffer(mediaKey),
+              directPath,
+              url,
+              mimetype,
+              fileSha256: toBuffer(fileSha256),
+              fileEncSha256: toBuffer(fileEncSha256),
+            },
+          },
+        };
+
+        downloadedBuffer = await downloadMediaMessage(message, 'buffer', {}) as Buffer;
+      }
+
+      const base64 = downloadedBuffer.toString('base64');
 
       return res.json({
         success: true,

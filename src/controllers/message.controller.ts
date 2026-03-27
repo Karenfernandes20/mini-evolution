@@ -88,85 +88,101 @@ export class MessageController {
   }
 
   async sendMedia(req: Request, res: Response, type: 'image' | 'audio' | 'video' | 'document' | 'sticker') {
-    const instance = (req.params.instance || req.body.instance || req.body.instanceKey) as string;
-    const body = req.body ?? {};
-    const mediaMessage = body.mediaMessage || {};
-    
-    const number = getStringValue(body.number, body.remoteJid, body.phone, body.to, mediaMessage.number);
-    const media = body.media || mediaMessage.media;
-    const caption = body.caption || mediaMessage.caption;
-    const fileName = body.fileName || mediaMessage.fileName;
-    const ptt = body.ptt || mediaMessage.ptt || false;
+    try {
+      const instance = (req.params.instance || req.body.instance || req.body.instanceKey) as string;
+      const body = req.body ?? {};
+      const mediaMessage = body.mediaMessage || {};
+      
+      const number = getStringValue(body.number, body.remoteJid, body.phone, body.to, mediaMessage.number);
+      const media = body.media || mediaMessage.media;
+      const caption = body.caption || mediaMessage.caption;
+      const fileName = body.fileName || mediaMessage.fileName;
+      const mimetype = body.mimetype || mediaMessage.mimetype;
+      const ptt = body.ptt || mediaMessage.ptt || false;
 
-    // Override type if mediatype is specified in payload
-    const finalType = (body.mediaType || mediaMessage.mediatype || type) as 'image' | 'audio' | 'video' | 'document' | 'sticker';
+      // Override type if mediatype is specified in payload
+      const finalType = (body.mediaType || mediaMessage.mediatype || type) as 'image' | 'audio' | 'video' | 'document' | 'sticker';
 
-    if (!instance || !number || !media) {
-      return res.status(400).json(
-        buildApiResponse({
-          success: false,
-          status: 'ERROR',
-          message: 'Missing required fields: instance, number/remoteJid, and media must be provided.',
-        }),
-      );
-    }
+      if (!instance || !number || !media) {
+        return res.status(400).json(
+          buildApiResponse({
+            success: false,
+            status: 'ERROR',
+            message: 'Missing required fields: instance, number/remoteJid, and media must be provided.',
+          }),
+        );
+      }
 
-    const provider = await instanceService.getProvider(instance);
-    if (!provider) {
-      return res.status(404).json(
-        buildApiResponse({
-          success: false,
-          status: 'ERROR',
-          instance,
-          message: 'Instance not found or not started',
-        }),
-      );
-    }
+      const provider = await instanceService.getProvider(instance);
+      if (!provider) {
+        return res.status(404).json(
+          buildApiResponse({
+            success: false,
+            status: 'ERROR',
+            instance,
+            message: 'Instance not found or not started',
+          }),
+        );
+      }
 
-    const jid = normalizeNumberToJid(String(number));
+      const jid = normalizeNumberToJid(String(number));
 
-    let filePath: string;
-    if (media.startsWith('http')) {
-      filePath = await mediaService.downloadFromUrl(media);
-    } else {
-      filePath = await mediaService.saveBase64(media, fileName || `${finalType}.bin`);
-    }
+      let filePath: string;
+      if (media.startsWith('http')) {
+        filePath = await mediaService.downloadFromUrl(media);
+      } else {
+        filePath = await mediaService.saveBase64(media, fileName || `${finalType}.bin`);
+      }
 
-    const mediaContent: any = {};
-    const buffer = fs.readFileSync(filePath);
-
-    if (finalType === 'image') mediaContent.image = buffer;
-    else if (finalType === 'sticker') {
-        mediaContent.sticker = buffer;
-        mediaContent.mimetype = 'image/webp';
-    } else if (finalType === 'audio') {
-      mediaContent.audio = buffer;
+      const mediaContent: any = {};
       const isPtt = ptt === true || ptt === 'true';
-      mediaContent.ptt = isPtt;
-      mediaContent.mimetype = isPtt ? 'audio/ogg; codecs=opus' : 'audio/mp4'; 
-    } else if (finalType === 'video') mediaContent.video = buffer;
-    else if (finalType === 'document') {
-      mediaContent.document = buffer;
-      mediaContent.mimetype = body.mimetype || mediaMessage.mimetype || 'application/pdf';
-      mediaContent.fileName = fileName || 'document.pdf';
+
+      if (finalType === 'image') {
+          mediaContent.image = { url: filePath };
+          if (mimetype) mediaContent.mimetype = mimetype;
+      }
+      else if (finalType === 'sticker') {
+          mediaContent.sticker = { url: filePath };
+          mediaContent.mimetype = mimetype || 'image/webp';
+      } else if (finalType === 'audio') {
+        mediaContent.audio = { url: filePath };
+        mediaContent.ptt = isPtt;
+        mediaContent.mimetype = mimetype || (isPtt ? 'audio/ogg; codecs=opus' : 'audio/mp4'); 
+      } else if (finalType === 'video') {
+          mediaContent.video = { url: filePath };
+          if (mimetype) mediaContent.mimetype = mimetype;
+      }
+      else if (finalType === 'document') {
+        mediaContent.document = { url: filePath };
+        mediaContent.mimetype = mimetype || 'application/pdf';
+        mediaContent.fileName = fileName || 'document.pdf';
+      }
+
+      if (caption) mediaContent.caption = caption;
+
+      const result = await provider.sendMessage(jid, mediaContent);
+      if (!result) {
+        throw new Error('Failed to send media');
+      }
+
+      return res.json({
+        ...buildApiResponse({
+          success: true,
+          status: 'CONNECTED',
+          instance,
+          message: 'Media sent successfully',
+        }),
+        data: { key: result.key },
+      });
+    } catch (error: any) {
+        return res.status(500).json(
+          buildApiResponse({
+            success: false,
+            status: 'ERROR',
+            message: `Failed to send media: ${error.message}`
+          })
+        );
     }
-
-    if (caption) mediaContent.caption = caption;
-
-    const result = await provider.sendMessage(jid, mediaContent);
-    if (!result) {
-      throw new Error('Failed to send media');
-    }
-
-    return res.json({
-      ...buildApiResponse({
-        success: true,
-        status: 'CONNECTED',
-        instance,
-        message: 'Media sent successfully',
-      }),
-      data: { key: result.key },
-    });
   }
 
   async sendImage(req: Request, res: Response) { return this.sendMedia(req, res, 'image'); }

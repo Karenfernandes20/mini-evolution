@@ -38,53 +38,63 @@ const normalizeNumberToJid = (number: string) => {
 
 export class MessageController {
   async sendText(req: Request, res: Response) {
-    // Dynamic extraction for compatibility
-    const instance = (req.params.instance || req.body.instance || req.body.instanceKey) as string;
-    const body = req.body ?? {};
-    const number = getStringValue(body.number, body.remoteJid, body.phone, body.to);
-    const text = getStringValue(body.text, body.message, body.textMessage?.text);
+    try {
+      // Dynamic extraction for compatibility
+      const instance = (req.params.instance || req.body.instance || req.body.instanceKey) as string;
+      const body = req.body ?? {};
+      const number = getStringValue(body.number, body.remoteJid, body.phone, body.to);
+      const text = getStringValue(body.text, body.message, body.textMessage?.text);
 
-    if (!instance || !number || !text) {
-      return res.status(400).json(
-        buildApiResponse({
-          success: false,
-          status: 'ERROR',
-          message: 'Missing required fields: instance, number/remoteJid, and text/textMessage.text/message must be provided.',
-        }),
-      );
-    }
+      if (!instance || !number || !text) {
+        return res.status(400).json(
+          buildApiResponse({
+            success: false,
+            status: 'ERROR',
+            message: 'Missing required fields: instance, number/remoteJid, and text/textMessage.text/message must be provided.',
+          }),
+        );
+      }
 
-    const provider = await instanceService.getProvider(instance);
-    if (!provider) {
-      return res.status(404).json(
-        buildApiResponse({
-          success: false,
-          status: 'ERROR',
+      const provider = await instanceService.getProvider(instance);
+      if (!provider) {
+        return res.status(404).json(
+          buildApiResponse({
+            success: false,
+            status: 'ERROR',
+            instance,
+            message: 'Instance not found or not started',
+          }),
+        );
+      }
+
+      const jid = normalizeNumberToJid(String(number));
+      const result = await provider.sendMessage(jid, { text });
+
+      if (!result) {
+        throw new Error('Failed to send message');
+      }
+
+      return res.json({
+        ...buildApiResponse({
+          success: true,
+          status: 'CONNECTED',
           instance,
-          message: 'Instance not found or not started',
+          message: 'Message sent successfully',
         }),
-      );
+        data: {
+          key: result.key,
+          message: result.message,
+        },
+      });
+    } catch (error: any) {
+        return res.status(500).json(
+          buildApiResponse({
+            success: false,
+            status: 'ERROR',
+            message: `Failed to send message: ${error.message}`
+          })
+        );
     }
-
-    const jid = normalizeNumberToJid(String(number));
-    const result = await provider.sendMessage(jid, { text });
-
-    if (!result) {
-      throw new Error('Failed to send message');
-    }
-
-    return res.json({
-      ...buildApiResponse({
-        success: true,
-        status: 'CONNECTED',
-        instance,
-        message: 'Message sent successfully',
-      }),
-      data: {
-        key: result.key,
-        message: result.message,
-      },
-    });
   }
 
   async sendMedia(req: Request, res: Response, type: 'image' | 'audio' | 'video' | 'document' | 'sticker') {
@@ -192,58 +202,68 @@ export class MessageController {
   async sendDocument(req: Request, res: Response) { return this.sendMedia(req, res, 'document'); }
 
   async sendReaction(req: Request, res: Response) {
-    const instance = (req.params.instance || req.body.instance || req.body.instanceKey) as string;
-    const body = req.body ?? {};
-    const number = getStringValue(body.number, body.remoteJid, body.phone, body.to);
-    const { emoji, messageId } = body;
+    try {
+      const instance = (req.params.instance || req.body.instance || req.body.instanceKey) as string;
+      const body = req.body ?? {};
+      const number = getStringValue(body.number, body.remoteJid, body.phone, body.to);
+      const { emoji, messageId } = body;
 
-    if (!instance || !number || !emoji || !messageId) {
-       return res.status(400).json(
-        buildApiResponse({
-          success: false,
-          status: 'ERROR',
-          message: 'Missing required fields for reaction.',
-        }),
-      );
-    }
+      if (!instance || !number || !emoji || !messageId) {
+         return res.status(400).json(
+          buildApiResponse({
+            success: false,
+            status: 'ERROR',
+            message: 'Missing required fields for reaction.',
+          }),
+        );
+      }
 
-    const provider = await instanceService.getProvider(instance);
-    if (!provider) {
-      return res.status(404).json(
-        buildApiResponse({
-          success: false,
-          status: 'ERROR',
-          instance,
-          message: 'Instance not found',
-        }),
-      );
-    }
+      const provider = await instanceService.getProvider(instance);
+      if (!provider) {
+        return res.status(404).json(
+          buildApiResponse({
+            success: false,
+            status: 'ERROR',
+            instance,
+            message: 'Instance not found',
+          }),
+        );
+      }
 
-    const jid = normalizeNumberToJid(String(number));
-    const result = await provider.sendMessage(jid, {
-      react: {
-        text: emoji,
-        key: {
-          remoteJid: jid,
-          fromMe: false,
-          id: messageId,
+      const jid = normalizeNumberToJid(String(number));
+      const result = await provider.sendMessage(jid, {
+        react: {
+          text: emoji,
+          key: {
+            remoteJid: jid,
+            fromMe: false,
+            id: messageId,
+          },
         },
-      },
-    });
+      });
 
-    if (!result) {
-      throw new Error('Failed to send reaction');
+      if (!result) {
+        throw new Error('Failed to send reaction');
+      }
+
+      return res.json({
+        ...buildApiResponse({
+          success: true,
+          status: 'CONNECTED',
+          instance,
+          message: 'Reaction sent successfully',
+        }),
+        data: { key: result.key },
+      });
+    } catch (error: any) {
+        return res.status(500).json(
+          buildApiResponse({
+            success: false,
+            status: 'ERROR',
+            message: `Failed to send reaction: ${error.message}`
+          })
+        );
     }
-
-    return res.json({
-      ...buildApiResponse({
-        success: true,
-        status: 'CONNECTED',
-        instance,
-        message: 'Reaction sent successfully',
-      }),
-      data: { key: result.key },
-    });
   }
 }
 

@@ -1,9 +1,11 @@
 import { Request, Response } from 'express';
+import { env } from '../config/env.js';
 import { instanceService } from '../services/instance.service.js';
 import logger from '../utils/logger.js';
 import { buildApiResponse } from '../utils/api-response.js';
 
 const normalizeInstanceName = (value: string) => value.trim().toLowerCase();
+const CONNECT_QR_WAIT_MS = Math.max(15000, Number(env.CONNECT_QR_WAIT_MS) || 45000);
 const toBuffer = (val: any) => {
   if (!val) return null;
   if (Buffer.isBuffer(val)) return val;
@@ -140,7 +142,7 @@ export class InstanceController {
     await instanceService.ensureInstance(instance);
     await instanceService.startInstance(instance);
 
-    const data = await instanceService.waitForQrCode(instance, 15000);
+    const data = await instanceService.waitForQrCode(instance, CONNECT_QR_WAIT_MS);
     const status = data?.qrBase64 ? 'QRCODE' : data?.status;
 
     return res.json(
@@ -229,7 +231,7 @@ export class InstanceController {
     // Just restart without deleting session
     await instanceService.startInstance(instance);
 
-    const data = await instanceService.waitForQrCode(instance, 15000);
+    const data = await instanceService.waitForQrCode(instance, CONNECT_QR_WAIT_MS);
 
     return res.json(
       buildApiResponse({

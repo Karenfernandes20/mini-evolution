@@ -16,6 +16,7 @@ const envSchema = z.object({
   WEBHOOK_URL_BASE: z.string().optional(),
   SELF_URL: z.string().optional(),
   INSTANCE_TOKEN_PREFIX: z.string().default('me_'),
+  CONNECT_QR_WAIT_MS: z.string().default('45000'),
   ADMIN_EMAIL: z.string().default('integraiempresa01@gmail.com'),
   ADMIN_PASS: z.string().default('Integr1234'),
   ADMIN_TOKEN: z.string().default('minievo-session-token-998877'),

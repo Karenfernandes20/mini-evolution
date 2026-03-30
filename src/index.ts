@@ -144,7 +144,7 @@ app.post('/management/instances/:key/disconnect', authMiddleware, async (req, re
   await instanceService.deleteInstance(key);
   await instanceService.ensureInstance(key);
   await instanceService.startInstance(key);
-  const data = await instanceService.waitForQrCode(key, 15000);
+  const data = await instanceService.waitForQrCode(key, Math.max(15000, Number(env.CONNECT_QR_WAIT_MS) || 45000));
 
   res.json(
     buildApiResponse({

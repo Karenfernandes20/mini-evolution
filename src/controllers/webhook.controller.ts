@@ -4,6 +4,15 @@ import logger from '../utils/logger.js';
 import { buildApiResponse } from '../utils/api-response.js';
 
 export class WebhookController {
+  private isValidAbsoluteHttpUrl(url: string) {
+    try {
+      const parsed = new URL(url);
+      return parsed.protocol === 'http:' || parsed.protocol === 'https:';
+    } catch {
+      return false;
+    }
+  }
+
   async setGlobal(req: Request, res: Response) {
     const { url } = req.body ?? {};
     if (!url) {
@@ -16,10 +25,20 @@ export class WebhookController {
         }),
       );
     }
+    if (!this.isValidAbsoluteHttpUrl(url)) {
+      return res.status(400).json(
+        buildApiResponse({
+          success: false,
+          status: 'ERROR',
+          instance: 'system',
+          message: 'Invalid webhook URL. Configure a public absolute URL (http/https), e.g. https://your-domain.com/api/minievo/webhook',
+        }),
+      );
+    }
 
     process.env.WEBHOOK_URL_BASE = url;
     env.WEBHOOK_URL_BASE = url;
-    logger.info({ url }, 'Global webhook updated');
+    logger.info({ backendUrl: url }, 'Global webhook updated');
 
     return res.json({
       ...buildApiResponse({
@@ -47,10 +66,21 @@ export class WebhookController {
         }),
       );
     }
+    if (!this.isValidAbsoluteHttpUrl(targetUrl)) {
+      return res.status(400).json(
+        buildApiResponse({
+          success: false,
+          status: 'ERROR',
+          instance,
+          message: 'Invalid instance webhook URL. Configure a public absolute URL (http/https), e.g. https://your-domain.com/api/minievo/webhook',
+        }),
+      );
+    }
 
     try {
       const { instanceService } = await import('../services/instance.service.js');
       await instanceService.setWebhook(instance, targetUrl);
+      logger.info({ instance, backendUrl: targetUrl, instanceKeyFinal: instance.toLowerCase() }, 'Instance webhook updated');
 
       return res.json(
         buildApiResponse({

@@ -377,6 +377,7 @@ export class InstanceController {
       }
 
       const jid = number.includes('@') ? number : `${number}@s.whatsapp.net`;
+      logger.info({ instance, jid, endpoint: '/chat/fetchProfilePictureUrl/:instance' }, 'Attempting profile picture fetch');
       const url = await socket.profilePictureUrl(jid);
       
       return res.json({ 
@@ -402,7 +403,7 @@ export class InstanceController {
       if (isNotAuthorized || isNotFound) {
         logger.warn(
           { err: error, instance, number, statusCode, isNotAuthorized, isNotFound },
-          'Profile picture unavailable for contact; returning null URL',
+          'Profile picture unavailable for contact; fallback attempted and returning null URL',
         );
 
         return res.json({
@@ -453,6 +454,7 @@ export class InstanceController {
       }
 
       const metadata = await socket.groupMetadata(groupJid as string);
+      logger.info({ instance, groupJid, endpoint: '/group/findGroup/:instance' }, 'Attempting group profile picture fetch');
       const url = await socket.profilePictureUrl(groupJid as string).catch(() => null);
       
       return res.json({

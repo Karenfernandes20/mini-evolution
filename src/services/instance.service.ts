@@ -152,10 +152,22 @@ class InstanceService {
     const groupNameCache = new Map<string, string>();
 
     provider.on('messages.upsert', async (message) => {
-      logger.info({ instance: normalizedKey, count: message.messages?.length }, '📩 Message received, dispatching webhook');
+      const processableMessages = (message as any)?.messages || (message as any)?.data?.messages || (message as any)?.body?.messages || [];
+      logger.info({ instance: normalizedKey, count: processableMessages?.length || 0 }, '📩 Message received, dispatching webhook');
+      if (!Array.isArray(processableMessages) || processableMessages.length === 0) {
+        logger.warn(
+          {
+            instance: normalizedKey,
+            messageKeys: Object.keys((message as any) || {}),
+            hasDataMessages: Boolean((message as any)?.data?.messages),
+            hasBodyMessages: Boolean((message as any)?.body?.messages),
+          },
+          'messages.upsert payload received without processable messages array',
+        );
+      }
       
       // Auto-enrich group names if applicable
-      for (const msg of message.messages || []) {
+      for (const msg of processableMessages || []) {
         const jid = msg.key.remoteJid;
         if (jid?.endsWith('@g.us')) {
           try {
@@ -182,7 +194,7 @@ class InstanceService {
         }
       }
 
-      const firstMediaUrl = (message.messages || []).find((msg: any) => !!msg?.mediaUrl)?.mediaUrl;
+      const firstMediaUrl = (processableMessages || []).find((msg: any) => !!msg?.mediaUrl)?.mediaUrl;
       if (firstMediaUrl) {
         (message as any).mediaUrl = firstMediaUrl;
       }

@@ -36,6 +36,34 @@ const normalizeNumberToJid = (number: string) => {
   return `${digitsOnly}@s.whatsapp.net`;
 };
 
+type OutboundStatus = 'pending' | 'sent' | 'delivered' | 'read' | 'failed';
+
+const normalizeOutboundStatus = (result: any): OutboundStatus => {
+  const candidate = String(
+    result?.status ??
+    result?.ack ??
+    result?.messageStatus ??
+    result?.message?.status ??
+    '',
+  ).toLowerCase();
+
+  if (['read', 'played'].includes(candidate)) return 'read';
+  if (['delivery_ack', 'delivered', '2'].includes(candidate)) return 'delivered';
+  if (['server_ack', 'sent', '1'].includes(candidate)) return 'sent';
+  if (['failed', 'error', '4', '5'].includes(candidate)) return 'failed';
+  if (['queue', 'queued', 'pending', 'accepted', '0'].includes(candidate)) return 'pending';
+
+  // Default to pending to avoid false-positive "sent" when provider only accepted the request.
+  return 'pending';
+};
+
+const hasLogicalFailure = (result: any) => {
+  const normalized = result as any;
+  const explicitFailure = normalized?.success === false || normalized?.ok === false;
+  const errorText = String(normalized?.error || normalized?.message || '').toLowerCase();
+  return explicitFailure || errorText.includes('fail') || errorText.includes('erro');
+};
+
 export class MessageController {
   async sendText(req: Request, res: Response) {
     try {
@@ -73,17 +101,35 @@ export class MessageController {
       if (!result) {
         throw new Error('Failed to send message');
       }
+      const normalizedResult = result as any;
+      if (hasLogicalFailure(normalizedResult)) {
+        return res.status(502).json(
+          buildApiResponse({
+            success: false,
+            status: 'ERROR',
+            instance,
+            message: `Provider accepted HTTP but returned logical failure: ${String(normalizedResult?.error || normalizedResult?.message || 'unknown error')}`,
+          }),
+        );
+      }
+      const outboundStatus = normalizeOutboundStatus(result);
 
       return res.json({
         ...buildApiResponse({
           success: true,
-          status: 'CONNECTED',
+          status: outboundStatus === 'failed' ? 'ERROR' : 'CONNECTED',
           instance,
-          message: 'Message sent successfully',
+          message:
+            outboundStatus === 'pending'
+              ? 'Message accepted and queued by provider'
+              : outboundStatus === 'failed'
+              ? 'Message failed at provider'
+              : 'Message sent successfully',
         }),
         data: {
           key: result.key,
           message: result.message,
+          outboundStatus,
         },
       });
     } catch (error: any) {
@@ -174,15 +220,32 @@ export class MessageController {
       if (!result) {
         throw new Error('Failed to send media');
       }
+      const normalizedResult = result as any;
+      if (hasLogicalFailure(normalizedResult)) {
+        return res.status(502).json(
+          buildApiResponse({
+            success: false,
+            status: 'ERROR',
+            instance,
+            message: `Provider accepted HTTP but returned logical failure: ${String(normalizedResult?.error || normalizedResult?.message || 'unknown error')}`,
+          }),
+        );
+      }
+      const outboundStatus = normalizeOutboundStatus(result);
 
       return res.json({
         ...buildApiResponse({
           success: true,
-          status: 'CONNECTED',
+          status: outboundStatus === 'failed' ? 'ERROR' : 'CONNECTED',
           instance,
-          message: 'Media sent successfully',
+          message:
+            outboundStatus === 'pending'
+              ? 'Media accepted and queued by provider'
+              : outboundStatus === 'failed'
+              ? 'Media failed at provider'
+              : 'Media sent successfully',
         }),
-        data: { key: result.key },
+        data: { key: result.key, outboundStatus },
       });
     } catch (error: any) {
         return res.status(500).json(
@@ -245,15 +308,32 @@ export class MessageController {
       if (!result) {
         throw new Error('Failed to send reaction');
       }
+      const normalizedResult = result as any;
+      if (hasLogicalFailure(normalizedResult)) {
+        return res.status(502).json(
+          buildApiResponse({
+            success: false,
+            status: 'ERROR',
+            instance,
+            message: `Provider accepted HTTP but returned logical failure: ${String(normalizedResult?.error || normalizedResult?.message || 'unknown error')}`,
+          }),
+        );
+      }
+      const outboundStatus = normalizeOutboundStatus(result);
 
       return res.json({
         ...buildApiResponse({
           success: true,
-          status: 'CONNECTED',
+          status: outboundStatus === 'failed' ? 'ERROR' : 'CONNECTED',
           instance,
-          message: 'Reaction sent successfully',
+          message:
+            outboundStatus === 'pending'
+              ? 'Reaction accepted and queued by provider'
+              : outboundStatus === 'failed'
+              ? 'Reaction failed at provider'
+              : 'Reaction sent successfully',
         }),
-        data: { key: result.key },
+        data: { key: result.key, outboundStatus },
       });
     } catch (error: any) {
         return res.status(500).json(

@@ -123,7 +123,18 @@ class InstanceService {
 
     const existingProvider = this.providers.get(normalizedKey);
     if (existingProvider) {
-      return existingProvider;
+      const currentInstance = await this.getInstance(normalizedKey);
+      if (currentInstance?.status !== 'disconnected') {
+        return existingProvider;
+      }
+
+      logger.warn({ instance: normalizedKey }, 'Existing provider found in disconnected state, recreating provider');
+      try {
+        await existingProvider.logout();
+      } catch (error) {
+        logger.warn({ err: error, instance: normalizedKey }, 'Failed to logout stale provider while recreating instance');
+      }
+      this.providers.delete(normalizedKey);
     }
 
     const provider = new WhatsAppProvider(normalizedKey);

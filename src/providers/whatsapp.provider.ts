@@ -284,6 +284,11 @@ export class WhatsAppProvider extends EventEmitter {
   private buildMediaUrlFromDirectPath(directPath?: string): string {
     if (!directPath || typeof directPath !== 'string') return '';
     const normalizedDirectPath = directPath.startsWith('/') ? directPath : `/${directPath}`;
+    // Evolution may return local upload paths (e.g. /uploads/messages/file.ogg).
+    // These are not public URLs and must remain local paths for downstream processors.
+    if (normalizedDirectPath.startsWith('/uploads/')) {
+      return normalizedDirectPath;
+    }
     const baseUrl = (env.SELF_URL || `http://127.0.0.1:${env.PORT || '3000'}`).replace(/\/$/, '');
     return `${baseUrl}${normalizedDirectPath}`;
   }

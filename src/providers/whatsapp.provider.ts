@@ -155,6 +155,7 @@ export class WhatsAppProvider extends EventEmitter {
           
           if (isMedia) {
               const mediaObj = (msg.message as any)[messageType];
+              const directPathFallback = this.buildMediaUrlFromDirectPath(mediaObj?.directPath);
               try {
                   const { downloadMediaMessage } = await import('@whiskeysockets/baileys');
                   const buffer = await downloadMediaMessage(msg, 'buffer', {});
@@ -167,6 +168,19 @@ export class WhatsAppProvider extends EventEmitter {
                   (msg as any).mediaUrl = mediaUrl;
                   
                   logger.info({ instance: this.instanceKey, msgId: msg.key.id, mediaUrl }, '✅ Media downloaded and saved locally');
+
+                  if (messageType === 'audioMessage') {
+                    logger.info(
+                      {
+                        instance: this.instanceKey,
+                        msgId: msg.key.id,
+                        url: mediaUrl,
+                        mimetype: mediaObj?.mimetype || 'audio/ogg',
+                        seconds: Number(mediaObj?.seconds || 0),
+                      },
+                      '[MiniEvolution] Audio recebido',
+                    );
+                  }
 
                   this.emit('message.media.received', {
                       message: msg,
@@ -183,6 +197,23 @@ export class WhatsAppProvider extends EventEmitter {
                       fileName: mediaObj.fileName || fileName
                   });
               } catch (e) {
+                  if (directPathFallback) {
+                    (msg as any).mediaUrl = directPathFallback;
+                  }
+
+                  if (messageType === 'audioMessage') {
+                    logger.info(
+                      {
+                        instance: this.instanceKey,
+                        msgId: msg.key.id,
+                        url: (msg as any).mediaUrl || mediaObj?.url || mediaObj?.mediaUrl || directPathFallback || 'N/A',
+                        mimetype: mediaObj?.mimetype || 'audio/ogg',
+                        seconds: Number(mediaObj?.seconds || 0),
+                      },
+                      '[MiniEvolution] Audio recebido',
+                    );
+                  }
+
                   logger.error({ err: (e as any).message, instance: this.instanceKey, msgId: msg.key.id }, '❌ Error downloading media');
               }
           }
@@ -248,6 +279,13 @@ export class WhatsAppProvider extends EventEmitter {
   private buildPublicMediaUrl(filePath: string): string {
     const baseUrl = (env.SELF_URL || `http://127.0.0.1:${env.PORT || '3000'}`).replace(/\/$/, '');
     return `${baseUrl}/media/${path.basename(filePath)}`;
+  }
+
+  private buildMediaUrlFromDirectPath(directPath?: string): string {
+    if (!directPath || typeof directPath !== 'string') return '';
+    const normalizedDirectPath = directPath.startsWith('/') ? directPath : `/${directPath}`;
+    const baseUrl = (env.SELF_URL || `http://127.0.0.1:${env.PORT || '3000'}`).replace(/\/$/, '');
+    return `${baseUrl}${normalizedDirectPath}`;
   }
 
   getContacts() {

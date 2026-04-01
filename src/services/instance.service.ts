@@ -6,6 +6,7 @@ import { WhatsAppProvider } from '../providers/whatsapp.provider.js';
 import { InstanceData, InstanceStatus } from '../types/instance.js';
 import logger from '../utils/logger.js';
 import { pool } from '../config/database.js';
+import { env } from '../config/env.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

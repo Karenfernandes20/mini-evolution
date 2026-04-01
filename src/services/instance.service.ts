@@ -6,6 +6,7 @@ import { WhatsAppProvider } from '../providers/whatsapp.provider.js';
 import { InstanceData, InstanceStatus } from '../types/instance.js';
 import logger from '../utils/logger.js';
 import { pool } from '../config/database.js';
+import { env } from '../config/env.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -67,6 +68,65 @@ class InstanceService {
   private saveToCache() {
     const data = Array.from(this.instancesData.values());
     fs.writeFileSync(this.instancesFile, JSON.stringify(data, null, 2));
+  }
+
+  private resolveAudioUrl(message: any, audioMessage: any): string | null {
+    const directAudioUrl = typeof audioMessage?.url === 'string' ? audioMessage.url.trim() : '';
+    if (directAudioUrl) return directAudioUrl;
+
+    const mediaAudioUrl = typeof audioMessage?.mediaUrl === 'string' ? audioMessage.mediaUrl.trim() : '';
+    if (mediaAudioUrl) return mediaAudioUrl;
+
+    const directPath = typeof audioMessage?.directPath === 'string' ? audioMessage.directPath.trim() : '';
+    if (directPath) {
+      const configuredBase = (env.MEDIA_BASE_URL || env.SELF_URL || '').trim().replace(/\/$/, '');
+      if (configuredBase) {
+        return `${configuredBase}${directPath.startsWith('/') ? '' : '/'}${directPath}`;
+      }
+      // WhatsApp CDN fallback for directPath payloads.
+      return `https://mmg.whatsapp.net${directPath.startsWith('/') ? '' : '/'}${directPath}`;
+    }
+
+    const localMediaUrl = typeof message?.mediaUrl === 'string' ? message.mediaUrl.trim() : '';
+    return localMediaUrl || null;
+  }
+
+  private normalizeIncomingAudioPayload(message: any) {
+    const audioMessage = message?.message?.audioMessage;
+    if (!audioMessage) return null;
+
+    const resolvedUrl = this.resolveAudioUrl(message, audioMessage);
+    const mimetype = typeof audioMessage?.mimetype === 'string' ? audioMessage.mimetype : 'audio/ogg';
+    const fileLength = Number(audioMessage?.fileLength || 0);
+    const seconds = Number(audioMessage?.seconds || 0);
+    const ptt = Boolean(audioMessage?.ptt);
+
+    logger.info(
+      {
+        instance: this.instanceFromJid(message?.key?.remoteJid),
+        messageId: message?.key?.id,
+      },
+      `[MiniEvolution] Audio recebido:\n- URL: ${resolvedUrl || 'N/A'}\n- Tipo: ${mimetype}\n- Duração: ${seconds}s`,
+    );
+
+    return {
+      type: 'audio',
+      messageId: message?.key?.id || null,
+      from: message?.key?.participant || message?.key?.remoteJid || null,
+      timestamp: message?.messageTimestamp || null,
+      audio: {
+        url: resolvedUrl,
+        mimetype,
+        fileLength,
+        seconds,
+        ptt,
+      },
+    };
+  }
+
+  private instanceFromJid(jid?: string): string | null {
+    if (!jid || typeof jid !== 'string') return null;
+    return jid.split('@')[0] || null;
   }
 
   async ensureInstance(key: string, name?: string, token?: string, webhookUrl?: string) {
@@ -208,6 +268,14 @@ class InstanceService {
       const firstMediaUrl = (processableMessages || []).find((msg: any) => !!msg?.mediaUrl)?.mediaUrl;
       if (firstMediaUrl) {
         (message as any).mediaUrl = firstMediaUrl;
+      }
+
+      const normalizedAudioMessages = (processableMessages || [])
+        .map((msg: any) => this.normalizeIncomingAudioPayload(msg))
+        .filter(Boolean);
+
+      if (normalizedAudioMessages.length > 0) {
+        (message as any).audioMessages = normalizedAudioMessages;
       }
 
       const { webhookService } = await import('./webhook.service.js');

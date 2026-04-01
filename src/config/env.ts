@@ -15,6 +15,7 @@ const envSchema = z.object({
   GLOBAL_API_KEY: z.string().default('minievo-secret-key'),
   WEBHOOK_URL_BASE: z.string().optional(),
   SELF_URL: z.string().optional(),
+  MEDIA_BASE_URL: z.string().optional(),
   INSTANCE_TOKEN_PREFIX: z.string().default('me_'),
   CONNECT_QR_WAIT_MS: z.string().default('45000'),
   ADMIN_EMAIL: z.string().default('integraiempresa01@gmail.com'),

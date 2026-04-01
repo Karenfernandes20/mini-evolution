@@ -83,6 +83,10 @@ class InstanceService {
   private buildMediaUrlFromDirectPath(directPath?: string): string {
     if (!directPath || typeof directPath !== 'string') return '';
     const normalizedDirectPath = directPath.startsWith('/') ? directPath : `/${directPath}`;
+    // Keep Evolution local upload paths as-is so consumers can resolve from disk.
+    if (normalizedDirectPath.startsWith('/uploads/')) {
+      return normalizedDirectPath;
+    }
     const baseUrl = (process.env.SELF_URL || `http://127.0.0.1:${process.env.PORT || '3000'}`).replace(/\/$/, '');
     return `${baseUrl}${normalizedDirectPath}`;
   }
@@ -98,7 +102,12 @@ class InstanceService {
       this.buildMediaUrlFromDirectPath(audioMessage?.directPath);
 
     const fallbackMimetype = String(audioMessage?.mimetype || '').includes('mpeg') ? 'audio/mpeg' : 'audio/ogg';
-    const normalizedUrl = this.isAbsoluteHttpUrl(candidateUrl) ? candidateUrl : '';
+    const normalizedUrl = candidateUrl?.startsWith('/uploads/')
+      ? candidateUrl
+      : this.isAbsoluteHttpUrl(candidateUrl)
+        ? candidateUrl
+        : '';
+    const source = normalizedUrl.startsWith('/uploads/') ? 'local_upload' : 'public_url';
 
     return {
       type: 'audio',
@@ -107,6 +116,7 @@ class InstanceService {
       timestamp: String(rawMessage?.messageTimestamp || Math.floor(Date.now() / 1000)),
       audio: {
         url: normalizedUrl,
+        source,
         mimetype: fallbackMimetype,
         fileLength: Number(audioMessage?.fileLength || 0),
         seconds: Number(audioMessage?.seconds || 0),
